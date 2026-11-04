@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 import {
   Field,
   FieldDescription,
@@ -213,12 +214,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         </p>
       )}
       {error && (
-        <p
-          className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-          role="alert"
-        >
-          {error}
-        </p>
+        <SweetAlertError message={error} title="Unable to save event" />
       )}
 
       <Card className="mt-7" id="create-event">

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 
 export default function ErrorPage({
   error,
@@ -17,6 +18,10 @@ export default function ErrorPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
+      <SweetAlertError
+        message="Please try again. If the problem continues, return to the homepage."
+        title="We couldn’t load this page"
+      />
       <section
         aria-labelledby="error-title"
         className="w-full max-w-lg text-center"

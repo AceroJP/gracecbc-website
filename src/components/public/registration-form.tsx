@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 import {
   Dialog,
   DialogContent,
@@ -110,6 +111,14 @@ function TurnstileChallenge({
 
   return (
     <>
+      <SweetAlertError
+        message={
+          widgetFailed
+            ? "The security check could not load. Please refresh the page and try again."
+            : null
+        }
+        title="Security check unavailable"
+      />
       <Script
         onError={() => setWidgetFailed(true)}
         onReady={() => {
@@ -120,12 +129,6 @@ function TurnstileChallenge({
         strategy="afterInteractive"
       />
       <div aria-label="Security verification" ref={containerRef} />
-      {widgetFailed && (
-        <p className="text-sm text-destructive" role="alert">
-          The security check could not load. Please refresh the page and try
-          again.
-        </p>
-      )}
     </>
   );
 }
@@ -227,15 +230,26 @@ function RegistrationFormContent({
 
   if (!siteKey) {
     return (
-      <p className="rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
-        Online registration is temporarily unavailable. Please contact the
-        church for assistance.
-      </p>
+      <>
+        <SweetAlertError
+          message="Online registration is temporarily unavailable. Please contact the church for assistance."
+          title="Registration unavailable"
+        />
+        <p className="rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
+          Online registration is temporarily unavailable. Please contact the
+          church for assistance.
+        </p>
+      </>
     );
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <>
+      <SweetAlertError
+        message={state.status === "error" ? state.message : null}
+        title="Registration failed"
+      />
+      <form action={formAction} className="flex flex-col gap-5">
       {deadline && (
         <p className="text-sm text-muted-foreground">
           Registration closes on{" "}
@@ -344,12 +358,6 @@ function RegistrationFormContent({
         siteKey={siteKey}
       />
 
-      {state.status === "error" && (
-        <p className="text-sm text-destructive" role="alert">
-          {state.message}
-        </p>
-      )}
-
       <Button className="w-fit" disabled={!token || pending} type="submit">
         {pending ? "Submitting registration…" : "Submit registration"}
       </Button>
@@ -357,6 +365,7 @@ function RegistrationFormContent({
         Your details are shared with the event organizers and are not shown
         publicly.
       </p>
-    </form>
+      </form>
+    </>
   );
 }

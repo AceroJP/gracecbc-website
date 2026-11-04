@@ -5,6 +5,7 @@ import { ArrowRight, LoaderCircle } from "lucide-react";
 import { signInAction, type SignInState } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 
 const initialState: SignInState = {};
 
@@ -15,7 +16,9 @@ export function LoginForm() {
   );
 
   return (
-    <form action={formAction} className="space-y-5">
+    <>
+      <SweetAlertError message={state.error} title="Sign-in failed" />
+      <form action={formAction} className="space-y-5">
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="email">
           Email address
@@ -46,16 +49,6 @@ export function LoginForm() {
         />
       </div>
 
-      {state.error && (
-        <p
-          aria-live="polite"
-          className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
-          role="alert"
-        >
-          {state.error}
-        </p>
-      )}
-
       <Button className="w-full" disabled={pending} size="lg" type="submit">
         {pending ? (
           <>
@@ -69,6 +62,7 @@ export function LoginForm() {
           </>
         )}
       </Button>
-    </form>
+      </form>
+    </>
   );
 }
