@@ -1,0 +1,80 @@
+import {
+  CalendarDays,
+  FileText,
+  Images,
+  PanelsTopLeft,
+} from "lucide-react";
+
+const workspaceSections = [
+  {
+    title: "Landing page",
+    description: "Manage the public website welcome area.",
+    status: "Builder placeholder",
+    icon: PanelsTopLeft,
+  },
+  {
+    title: "Events & announcements",
+    description: "Prepare updates for the public website.",
+    status: "Content placeholder",
+    icon: CalendarDays,
+  },
+  {
+    title: "Schedules & devotionals",
+    description: "Organize church schedule and devotional content.",
+    status: "Content placeholder",
+    icon: FileText,
+  },
+  {
+    title: "Media library",
+    description: "A future home for approved website photos and media.",
+    status: "Library placeholder",
+    icon: Images,
+  },
+];
+
+export default function AdminDashboardPage() {
+  return (
+    <>
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">
+            Admin / Dashboard
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Website workspace
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            The management experience is being prepared. No website content or
+            account data is managed here yet.
+          </p>
+        </div>
+        <span className="w-fit rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          Initial interface
+        </span>
+      </div>
+
+      <section aria-label="Admin workspace areas" className="mt-9">
+        <h2 className="text-sm font-semibold">Workspace areas</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {workspaceSections.map(({ title, description, status, icon: Icon }) => (
+            <article
+              className="rounded-2xl border border-border bg-card p-5"
+              key={title}
+            >
+              <span className="flex size-10 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                <Icon aria-hidden="true" className="size-[18px]" />
+              </span>
+              <h3 className="mt-5 text-sm font-semibold">{title}</h3>
+              <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">
+                {description}
+              </p>
+              <p className="mt-4 border-t border-border pt-3 text-[11px] font-medium text-muted-foreground">
+                {status}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
