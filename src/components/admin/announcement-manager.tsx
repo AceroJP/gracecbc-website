@@ -574,6 +574,21 @@ export function AnnouncementManager({
     const announcementId = announcement?.id ?? crypto.randomUUID();
     setSubmitting(true);
     let uploadedPaths: string[] = [];
+    const totalUploads =
+      (pdfFile ? 1 : slides.length) + (changes.backgroundFile ? 1 : 0);
+    let completedUploads = 0;
+
+    void Swal.fire({
+      title: announcement ? "Saving announcement" : "Publishing announcement",
+      text:
+        totalUploads > 0
+          ? "Preparing secure file uploads..."
+          : "Saving your announcement...",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
 
     try {
       const uploadFiles = async (
@@ -583,6 +598,12 @@ export function AnnouncementManager({
         if (files.length === 0) {
           return [];
         }
+        Swal.update({
+          text:
+            purpose === "background"
+              ? "Preparing announcement background upload..."
+              : "Preparing presentation uploads...",
+        });
         const uploadResponse = await beginAnnouncementUploadsAction({
           announcementId,
           purpose,
@@ -601,6 +622,9 @@ export function AnnouncementManager({
         const uploaded = [];
         for (const [index, upload] of uploadResponse.uploads.entries()) {
           const file = files[index];
+          Swal.update({
+            text: `Uploading file ${completedUploads + 1} of ${totalUploads}: ${file.name}`,
+          });
           const { error } = await supabase.storage
             .from(announcementBucket)
             .uploadToSignedUrl(upload.path, upload.token, file, {
@@ -613,6 +637,7 @@ export function AnnouncementManager({
           }
           uploaded.push({ path: upload.path, name: upload.name });
           uploadedPaths.push(upload.path);
+          completedUploads += 1;
         }
         return uploaded;
       };
@@ -670,6 +695,11 @@ export function AnnouncementManager({
         presentation,
         background,
       };
+      Swal.update({
+        text: announcement
+          ? "Saving your announcement changes..."
+          : "Publishing your announcement...",
+      });
       const result = announcement
         ? await updateAnnouncementAction(announcementId, content)
         : await createAnnouncementAction(announcementId, content);
@@ -679,6 +709,7 @@ export function AnnouncementManager({
       }
 
       uploadedPaths = [];
+      Swal.close();
       if (announcement) {
         const dialog = form.closest('[data-slot="dialog-content"]');
         if (dialog) {
@@ -704,22 +735,40 @@ export function AnnouncementManager({
       });
     } catch (error) {
       console.error("Announcement save request failed.", error);
+      let cleanupFailed = false;
       if (uploadedPaths.length > 0) {
-        const cleanup = await cleanupAnnouncementUploadsAction(
-          announcementId,
-          uploadedPaths,
-        );
-        if (cleanup.status === "error") {
-          console.error("Uploaded announcement files could not be cleaned up.");
+        Swal.update({ text: "Cleaning up incomplete uploads..." });
+        try {
+          const cleanup = await cleanupAnnouncementUploadsAction(
+            announcementId,
+            uploadedPaths,
+          );
+          cleanupFailed = cleanup.status === "error";
+          if (cleanupFailed) {
+            console.error("Uploaded announcement files could not be cleaned up.");
+          }
+        } catch (cleanupError) {
+          cleanupFailed = true;
+          console.error(
+            "Uploaded announcement files could not be cleaned up.",
+            cleanupError,
+          );
         }
       }
+      Swal.close();
       await Swal.fire({
         icon: "error",
         title: "Unable to save announcement",
         text:
-          error instanceof Error
-            ? error.message
-            : "We couldn’t save this announcement. Please try again.",
+          `${
+            error instanceof Error
+              ? error.message
+              : "We couldn’t save this announcement. Please try again."
+          }${
+            cleanupFailed
+              ? " Some uploaded files could not be cleaned up; please contact support."
+              : ""
+          }`,
         confirmButtonText: "Okay",
       });
     } finally {
