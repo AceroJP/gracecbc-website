@@ -31,6 +31,9 @@ export default async function AnnouncementsPage() {
       slide_urls: announcement.slide_paths.map(
         (path) => storage.getPublicUrl(path).data.publicUrl,
       ),
+      background_url: announcement.background_path
+        ? storage.getPublicUrl(announcement.background_path).data.publicUrl
+        : null,
     };
   });
 

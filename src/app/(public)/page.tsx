@@ -82,7 +82,7 @@ export default async function Home() {
     supabase
       .from("announcements")
       .select(
-        "id, title, body, pdf_path, pdf_name, slide_paths, slide_names, created_at",
+        "id, title, body, pdf_path, pdf_name, slide_paths, slide_names, categories, background_path, created_at",
       )
       .is("archived_at", null)
       .order("created_at", { ascending: false })
@@ -112,6 +112,10 @@ export default async function Home() {
       slide_urls: announcement.slide_paths.map(
         (path) => storage.getPublicUrl(path).data.publicUrl,
       ),
+      categories: announcement.categories,
+      background_url: announcement.background_path
+        ? storage.getPublicUrl(announcement.background_path).data.publicUrl
+        : null,
       created_at: announcement.created_at,
     }));
 
@@ -196,21 +200,73 @@ export default async function Home() {
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {publicAnnouncements.map((announcement) => (
               <article
-                className="rounded-2xl border border-border bg-card p-6"
+                className={
+                  announcement.background_url
+                    ? "relative isolate overflow-hidden rounded-2xl border border-border bg-cover bg-center p-6 text-white before:absolute before:inset-0 before:-z-10 before:bg-gradient-to-t before:from-black/80 before:via-black/45 before:to-black/25 before:content-['']"
+                    : "relative isolate overflow-hidden rounded-2xl border border-border bg-card p-6"
+                }
+                style={
+                  announcement.background_url
+                    ? {
+                        backgroundImage: `url("${announcement.background_url}")`,
+                      }
+                    : undefined
+                }
                 key={announcement.id}
               >
-                <p className="text-xs font-medium text-brand">
-                  {formatAnnouncementDate(announcement.created_at)}
-                </p>
-                <h3 className="mt-2 text-lg font-semibold tracking-tight">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p
+                    className={
+                      announcement.background_url
+                        ? "text-xs font-medium text-white/90"
+                        : "text-xs font-medium text-brand"
+                    }
+                  >
+                    {formatAnnouncementDate(announcement.created_at)}
+                  </p>
+                  {announcement.categories.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {announcement.categories.map((category) => (
+                        <span
+                          className={
+                            announcement.background_url
+                              ? "rounded-full border border-white/30 bg-black/20 px-3 py-1 text-[11px] font-medium text-white"
+                              : "rounded-full bg-brand/8 px-3 py-1 text-[11px] font-medium text-brand"
+                          }
+                          key={category}
+                        >
+                          {category === "sunday_worship"
+                            ? "Sunday Worship"
+                            : "Prayer Meeting"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <h3
+                  className={
+                    announcement.background_url
+                      ? "mt-3 text-lg font-semibold tracking-tight text-white"
+                      : "mt-3 text-lg font-semibold tracking-tight"
+                  }
+                >
                   {announcement.title}
                 </h3>
                 {announcement.body && (
-                  <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                  <p
+                    className={
+                      announcement.background_url
+                        ? "mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-white/85"
+                        : "mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground"
+                    }
+                  >
                     {announcement.body}
                   </p>
                 )}
-                <AnnouncementViewer announcement={announcement} />
+                <AnnouncementViewer
+                  announcement={announcement}
+                  hasBackground={Boolean(announcement.background_url)}
+                />
               </article>
             ))}
           </div>

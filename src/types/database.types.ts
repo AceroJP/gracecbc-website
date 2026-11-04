@@ -18,6 +18,9 @@ export type Database = {
           pdf_name: string | null;
           slide_paths: string[];
           slide_names: string[];
+          categories: string[];
+          background_path: string | null;
+          background_name: string | null;
           archived_at: string | null;
           created_at: string;
           updated_at: string;
@@ -30,6 +33,9 @@ export type Database = {
           pdf_name?: string | null;
           slide_paths?: string[];
           slide_names?: string[];
+          categories?: string[];
+          background_path?: string | null;
+          background_name?: string | null;
           archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -42,6 +48,9 @@ export type Database = {
           pdf_name?: string | null;
           slide_paths?: string[];
           slide_names?: string[];
+          categories?: string[];
+          background_path?: string | null;
+          background_name?: string | null;
           archived_at?: string | null;
           created_at?: string;
           updated_at?: string;

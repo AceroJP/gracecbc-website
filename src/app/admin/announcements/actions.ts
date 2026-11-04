@@ -21,6 +21,7 @@ const fileUploadSchema = z.object({
 });
 const uploadRequestSchema = z.object({
   announcementId: uuidSchema,
+  purpose: z.enum(["presentation", "background"]),
   files: z.array(fileUploadSchema).min(1).max(announcementMaxImages),
 });
 const fileReferenceSchema = z.object({
@@ -37,7 +38,9 @@ const presentationSchema = z.discriminatedUnion("type", [
 const contentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   body: z.string().trim().max(3000),
-  presentation: presentationSchema.optional(),
+  categories: z.array(z.enum(["sunday_worship", "prayer_meeting"])).max(2),
+  presentation: presentationSchema.nullable().optional(),
+  background: fileReferenceSchema.nullable().optional(),
 });
 
 function isValidAnnouncementPath(path: string, announcementId: string) {
@@ -85,6 +88,10 @@ function getPresentationValues(
     return null;
   }
 
+  if (new Set(presentation.files.map((file) => file.path)).size !== presentation.files.length) {
+    return null;
+  }
+
   return {
     pdf_path: null,
     pdf_name: null,
@@ -102,7 +109,7 @@ export async function beginAnnouncementUploadsAction(
     return { status: "error" as const, message: "Invalid file upload request." };
   }
 
-  const { announcementId, files } = parsed.data;
+  const { announcementId, purpose, files } = parsed.data;
   if (
     files.some(
       ({ name, contentType, size }) =>
@@ -119,7 +126,11 @@ export async function beginAnnouncementUploadsAction(
   const isImages = files.every(({ contentType }) =>
     contentType.startsWith("image/"),
   );
-  if (!isPdf && !isImages) {
+  if (
+    (purpose === "presentation" && !isPdf && !isImages) ||
+    (purpose === "background" &&
+      (files.length !== 1 || !files[0].contentType.startsWith("image/")))
+  ) {
     return {
       status: "error" as const,
       message: "Upload one PDF presentation or a set of slide images, not both.",
@@ -172,7 +183,7 @@ export async function cleanupAnnouncementUploadsAction(
   const id = uuidSchema.safeParse(announcementId);
   if (
     !id.success ||
-    paths.length > announcementMaxImages ||
+    paths.length > announcementMaxImages + 2 ||
     paths.some((path) => !isValidAnnouncementPath(path, id.data))
   ) {
     return { status: "error" as const };
@@ -196,22 +207,29 @@ export async function createAnnouncementAction(
   await requireAdminUser();
   const id = uuidSchema.safeParse(announcementId);
   const parsed = contentSchema.safeParse(content);
-  if (!id.success || !parsed.success || !parsed.data.presentation) {
+  if (!id.success || !parsed.success) {
     return {
       status: "error" as const,
       message: "Check the announcement details and presentation.",
     };
   }
 
-  const presentation = getPresentationValues(
-    parsed.data.presentation,
-    id.data,
-  );
-  if (!presentation) {
+  const presentation = parsed.data.presentation
+    ? getPresentationValues(parsed.data.presentation, id.data)
+    : null;
+  if (parsed.data.presentation && !presentation) {
     return {
       status: "error" as const,
       message: "Invalid presentation file paths.",
     };
+  }
+  const background = parsed.data.background;
+  if (
+    background &&
+    (!isValidAnnouncementPath(background.path, id.data) ||
+      !/\.(jpg|jpeg|png|webp)$/i.test(background.path))
+  ) {
+    return { status: "error" as const, message: "Invalid background image path." };
   }
 
   const supabase = await createClient();
@@ -219,7 +237,13 @@ export async function createAnnouncementAction(
     id: id.data,
     title: parsed.data.title,
     body: parsed.data.body,
-    ...presentation,
+    categories: [...new Set(parsed.data.categories)],
+    pdf_path: presentation?.pdf_path ?? null,
+    pdf_name: presentation?.pdf_name ?? null,
+    slide_paths: presentation?.slide_paths ?? [],
+    slide_names: presentation?.slide_names ?? [],
+    background_path: background?.path ?? null,
+    background_name: background ? safeFileName(background.name) : null,
   });
   if (error) {
     console.error("Unable to create announcement.", error);
@@ -251,7 +275,7 @@ export async function updateAnnouncementAction(
   const supabase = await createClient();
   const { data: current, error: loadError } = await supabase
     .from("announcements")
-    .select("pdf_path, slide_paths")
+    .select("pdf_path, slide_paths, background_path")
     .eq("id", id.data)
     .maybeSingle();
   if (loadError) {
@@ -268,14 +292,40 @@ export async function updateAnnouncementAction(
     };
   }
 
-  const presentation = parsed.data.presentation
-    ? getPresentationValues(parsed.data.presentation, id.data)
-    : null;
-  if (parsed.data.presentation && !presentation) {
-    return {
-      status: "error" as const,
-      message: "Invalid presentation file paths.",
+  let presentation:
+    | {
+        pdf_path: string | null;
+        pdf_name: string | null;
+        slide_paths: string[];
+        slide_names: string[];
+      }
+    | undefined;
+  if (parsed.data.presentation === null) {
+    presentation = {
+      pdf_path: null,
+      pdf_name: null,
+      slide_paths: [],
+      slide_names: [],
     };
+  } else if (parsed.data.presentation) {
+    presentation = getPresentationValues(
+      parsed.data.presentation,
+      id.data,
+    ) ?? undefined;
+    if (!presentation) {
+      return {
+        status: "error" as const,
+        message: "Invalid presentation file paths.",
+      };
+    }
+  }
+  const background = parsed.data.background;
+  if (
+    background &&
+    (!isValidAnnouncementPath(background.path, id.data) ||
+      !/\.(jpg|jpeg|png|webp)$/i.test(background.path))
+  ) {
+    return { status: "error" as const, message: "Invalid background image path." };
   }
 
   const { data, error } = await supabase
@@ -283,7 +333,16 @@ export async function updateAnnouncementAction(
     .update({
       title: parsed.data.title,
       body: parsed.data.body,
+      categories: [...new Set(parsed.data.categories)],
       ...(presentation ?? {}),
+      ...(parsed.data.background === undefined
+        ? {}
+        : {
+            background_path: background?.path ?? null,
+            background_name: background
+              ? safeFileName(background.name)
+              : null,
+          }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id.data)
@@ -304,22 +363,37 @@ export async function updateAnnouncementAction(
   }
 
   let cleanupWarning = false;
-  if (presentation) {
-    const previousPaths = [
-      ...(current.pdf_path ? [current.pdf_path] : []),
-      ...current.slide_paths,
-    ];
-    if (previousPaths.length > 0) {
-      const { error: cleanupError } = await supabase.storage
-        .from(announcementBucket)
-        .remove(previousPaths);
-      if (cleanupError) {
-        cleanupWarning = true;
-        console.error(
-          "Unable to remove replaced announcement files.",
-          cleanupError,
-        );
-      }
+  const nextPaths = [
+    ...(presentation === undefined
+      ? [
+          ...(current.pdf_path ? [current.pdf_path] : []),
+          ...current.slide_paths,
+        ]
+      : [
+          ...(presentation?.pdf_path ? [presentation.pdf_path] : []),
+          ...(presentation?.slide_paths ?? []),
+        ]),
+    ...(parsed.data.background === undefined
+      ? current.background_path
+        ? [current.background_path]
+        : []
+      : background?.path
+        ? [background.path]
+        : []),
+  ];
+  const previousPaths = [
+    ...(current.pdf_path ? [current.pdf_path] : []),
+    ...current.slide_paths,
+    ...(current.background_path ? [current.background_path] : []),
+  ];
+  const removedPaths = previousPaths.filter((path) => !nextPaths.includes(path));
+  if (removedPaths.length > 0) {
+    const { error: cleanupError } = await supabase.storage
+      .from(announcementBucket)
+      .remove(removedPaths);
+    if (cleanupError) {
+      cleanupWarning = true;
+      console.error("Unable to remove deleted announcement files.", cleanupError);
     }
   }
 

@@ -21,12 +21,16 @@ export type PublicAnnouncement = {
   pdf_url: string | null;
   slide_names: string[];
   slide_urls: string[];
+  categories: string[];
+  background_url: string | null;
 };
 
 export function AnnouncementViewer({
   announcement,
+  hasBackground = false,
 }: {
   announcement: PublicAnnouncement;
+  hasBackground?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -44,7 +48,11 @@ export function AnnouncementViewer({
     >
       <DialogTrigger
         render={
-          <Button className="mt-5 w-full sm:w-fit" type="button" variant="outline" />
+          <Button
+            className="mt-5 w-full sm:w-fit"
+            type="button"
+            variant={hasBackground ? "secondary" : "outline"}
+          />
         }
       >
         <Presentation data-icon="inline-start" />

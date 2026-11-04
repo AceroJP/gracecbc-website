@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  X,
   Archive,
   ChevronRight,
   FileImage,
@@ -32,6 +33,8 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,6 +60,7 @@ export type AdminAnnouncement =
   Database["public"]["Tables"]["announcements"]["Row"] & {
     pdf_url: string | null;
     slide_urls: string[];
+    background_url: string | null;
   };
 
 type PresentationUpload =
@@ -69,6 +73,18 @@ type PresentationUpload =
       files: { path: string; name: string }[];
     };
 
+type AnnouncementCategory = "sunday_worship" | "prayer_meeting";
+
+type AnnouncementFormChanges = {
+    categories: AnnouncementCategory[];
+  pdfFile: File | null;
+  slideFiles: File[];
+  removedSlidePaths: string[];
+  removePdf: boolean;
+  backgroundFile: File | null;
+  removeBackground: boolean;
+};
+
 function AnnouncementForm({
   announcement,
   submitting,
@@ -79,16 +95,37 @@ function AnnouncementForm({
   onSubmit: (
     event: FormEvent<HTMLFormElement>,
     announcement?: AdminAnnouncement,
+    changes?: AnnouncementFormChanges,
   ) => void;
 }) {
   const prefix = useId();
-  const pdfInputRef = useRef<HTMLInputElement>(null);
-  const slideInputRef = useRef<HTMLInputElement>(null);
+  const [categories, setCategories] = useState<AnnouncementCategory[]>(
+    announcement?.categories.filter(
+      (category): category is AnnouncementCategory =>
+        category === "sunday_worship" || category === "prayer_meeting",
+    ) ?? [],
+  );
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [slideFiles, setSlideFiles] = useState<File[]>([]);
+  const [removedSlidePaths, setRemovedSlidePaths] = useState<string[]>([]);
+  const [removePdf, setRemovePdf] = useState(false);
+  const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
+  const [removeBackground, setRemoveBackground] = useState(false);
 
   return (
     <form
       className="flex flex-col gap-5"
-      onSubmit={(event) => onSubmit(event, announcement)}
+      onSubmit={(event) =>
+        onSubmit(event, announcement, {
+          categories,
+          pdfFile,
+          slideFiles,
+          removedSlidePaths,
+          removePdf,
+          backgroundFile,
+          removeBackground,
+        })
+      }
     >
       <FieldGroup>
         <Field>
@@ -114,6 +151,48 @@ function AnnouncementForm({
             rows={4}
           />
         </Field>
+        <FieldSet>
+          <FieldLegend variant="label">Show in these announcements</FieldLegend>
+          <FieldGroup className="grid gap-3 sm:grid-cols-2">
+            <Field orientation="horizontal">
+              <Input
+                checked={categories.includes("sunday_worship")}
+                id={`${prefix}-sunday-worship`}
+                onChange={(event) =>
+                  setCategories((current) =>
+                    event.target.checked
+                      ? [...current, "sunday_worship"]
+                      : current.filter((category) => category !== "sunday_worship"),
+                  )
+                }
+                type="checkbox"
+              />
+              <FieldLabel htmlFor={`${prefix}-sunday-worship`}>
+                Sunday Worship
+              </FieldLabel>
+            </Field>
+            <Field orientation="horizontal">
+              <Input
+                checked={categories.includes("prayer_meeting")}
+                id={`${prefix}-prayer-meeting`}
+                onChange={(event) =>
+                  setCategories((current) =>
+                    event.target.checked
+                      ? [...current, "prayer_meeting"]
+                      : current.filter((category) => category !== "prayer_meeting"),
+                  )
+                }
+                type="checkbox"
+              />
+              <FieldLabel htmlFor={`${prefix}-prayer-meeting`}>
+                Prayer Meeting
+              </FieldLabel>
+            </Field>
+          </FieldGroup>
+          <FieldDescription>
+            Select both to show the announcement under both categories.
+          </FieldDescription>
+        </FieldSet>
         <Field>
           <FieldLabel htmlFor={`${prefix}-pdf`}>
             PowerPoint exported as PDF
@@ -121,17 +200,52 @@ function AnnouncementForm({
           <Input
             accept=".pdf,application/pdf"
             id={`${prefix}-pdf`}
-            name="pdf"
-            ref={pdfInputRef}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              setPdfFile(file);
+              if (file) {
+                setSlideFiles([]);
+              }
+              event.target.value = "";
+            }}
             type="file"
           />
           <FieldDescription>
             Upload one PDF up to 20 MB.
-            {announcement?.pdf_name && ` Current presentation: ${announcement.pdf_name}.`}
-            {announcement?.slide_names.length
-              ? ` Current presentation has ${announcement.slide_names.length} image slides.`
-              : ""}
           </FieldDescription>
+          {pdfFile && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <span className="truncate">{pdfFile.name}</span>
+              <Button
+                aria-label={`Remove selected PDF ${pdfFile.name}`}
+                onClick={() => setPdfFile(null)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X />
+              </Button>
+            </div>
+          )}
+          {announcement?.pdf_name && !removePdf && !pdfFile && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <span className="truncate">Current PDF: {announcement.pdf_name}</span>
+              <Button
+                aria-label={`Remove uploaded PDF ${announcement.pdf_name}`}
+                onClick={() => setRemovePdf(true)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X />
+              </Button>
+            </div>
+          )}
+          {removePdf && announcement?.pdf_name && (
+            <p className="text-sm text-muted-foreground">
+              The uploaded PDF will be removed when you save.
+            </p>
+          )}
         </Field>
         <Field>
           <FieldLabel htmlFor={`${prefix}-slides`}>
@@ -141,8 +255,12 @@ function AnnouncementForm({
             accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
             id={`${prefix}-slides`}
             multiple
-            name="slides"
-            ref={slideInputRef}
+            onChange={(event) => {
+              const selected = Array.from(event.target.files ?? []);
+              setSlideFiles((current) => [...current, ...selected]);
+              setPdfFile(null);
+              event.target.value = "";
+            }}
             type="file"
           />
           <FieldDescription>
@@ -150,6 +268,114 @@ function AnnouncementForm({
             up to 5 MB. They appear in the order selected. Leave both file
             inputs empty when editing to keep the current presentation.
           </FieldDescription>
+          {announcement?.slide_names.map((name, index) => {
+            const path = announcement.slide_paths[index];
+            if (!path || removedSlidePaths.includes(path) || pdfFile) {
+              return null;
+            }
+            return (
+              <div
+                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm"
+                key={path}
+              >
+                <span className="truncate">Current slide: {name}</span>
+                <Button
+                  aria-label={`Remove uploaded slide ${name}`}
+                  onClick={() =>
+                    setRemovedSlidePaths((current) => [...current, path])
+                  }
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <X />
+                </Button>
+              </div>
+            );
+          })}
+          {slideFiles.map((file, index) => (
+            <div
+              className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm"
+              key={`${file.name}-${file.lastModified}-${index}`}
+            >
+              <span className="truncate">New slide: {file.name}</span>
+              <Button
+                aria-label={`Remove selected slide ${file.name}`}
+                onClick={() =>
+                  setSlideFiles((current) =>
+                    current.filter((_, fileIndex) => fileIndex !== index),
+                  )
+                }
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X />
+              </Button>
+            </div>
+          ))}
+          {removedSlidePaths.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {removedSlidePaths.length} existing{" "}
+              {removedSlidePaths.length === 1 ? "slide" : "slides"} will be
+              removed when you save.
+            </p>
+          )}
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${prefix}-background`}>
+            Announcement card background image (optional)
+          </FieldLabel>
+          <Input
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            id={`${prefix}-background`}
+            onChange={(event) => {
+              setBackgroundFile(event.target.files?.[0] ?? null);
+              event.target.value = "";
+            }}
+            type="file"
+          />
+          <FieldDescription>
+            Choose a JPG, PNG, or WebP image up to 5 MB. A dark overlay is added
+            so the announcement text remains readable.
+          </FieldDescription>
+          {announcement?.background_name && !removeBackground && !backgroundFile && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <span className="truncate">
+                Current background: {announcement.background_name}
+              </span>
+              <Button
+                aria-label={`Remove background image ${announcement.background_name}`}
+                onClick={() => setRemoveBackground(true)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X />
+              </Button>
+            </div>
+          )}
+          {(backgroundFile || removeBackground) && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <span className="truncate">
+                {backgroundFile
+                  ? `New background: ${backgroundFile.name}`
+                  : "Background will be removed when you save."}
+              </span>
+              <Button
+                aria-label="Clear background selection"
+                onClick={() => {
+                  setBackgroundFile(null);
+                  setRemoveBackground(false);
+                }}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X />
+              </Button>
+            </div>
+          )}
         </Field>
       </FieldGroup>
       <Button className="w-fit" disabled={submitting} type="submit">
@@ -172,6 +398,7 @@ function AnnouncementEditDialog({
   onSubmit: (
     event: FormEvent<HTMLFormElement>,
     announcement?: AdminAnnouncement,
+    changes?: AnnouncementFormChanges,
   ) => void;
   submitting: boolean;
 }) {
@@ -192,8 +419,9 @@ function AnnouncementEditDialog({
           </DialogDescription>
         </DialogHeader>
         <AnnouncementForm
+          key={`${announcement.id}-${open}`}
           announcement={announcement}
-          onSubmit={(event, item) => onSubmit(event, item)}
+          onSubmit={(event, item, changes) => onSubmit(event, item, changes)}
           submitting={submitting}
         />
       </DialogContent>
@@ -213,18 +441,19 @@ export function AnnouncementManager({
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
     announcement?: AdminAnnouncement,
+    changes?: AnnouncementFormChanges,
   ) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const pdfFile = formData.get("pdf");
-    const slides = formData.getAll("slides").filter(
-      (file): file is File => file instanceof File && file.size > 0,
-    );
-    const selectedPdf =
-      pdfFile instanceof File && pdfFile.size > 0 ? pdfFile : null;
+    if (!changes) {
+      return;
+    }
 
-    if (selectedPdf && slides.length > 0) {
+    const pdfFile = changes.pdfFile;
+    const slides = changes.slideFiles;
+
+    if (pdfFile && slides.length > 0) {
       await Swal.fire({
         icon: "error",
         title: "Choose one presentation format",
@@ -234,48 +463,49 @@ export function AnnouncementManager({
       return;
     }
 
-    if (!announcement && !selectedPdf && slides.length === 0) {
-      await Swal.fire({
-        icon: "error",
-        title: "Presentation required",
-        text: "Upload a PDF presentation or at least one slide image.",
-        confirmButtonText: "Okay",
-      });
-      return;
-    }
-
     if (
-      (selectedPdf &&
-        !getAnnouncementFileExtension(
-          selectedPdf.name,
-          selectedPdf.type,
-          selectedPdf.size,
-        )) ||
-      slides.length > announcementMaxImages ||
+      (pdfFile &&
+        !getAnnouncementFileExtension(pdfFile.name, pdfFile.type, pdfFile.size)) ||
+      slides.length +
+        (announcement?.slide_paths.filter(
+          (path) => !changes.removedSlidePaths.includes(path),
+        ).length ?? 0) >
+        announcementMaxImages ||
       slides.some(
         (file) =>
           !getAnnouncementFileExtension(file.name, file.type, file.size),
-      )
+      ) ||
+      (changes.backgroundFile &&
+        !getAnnouncementFileExtension(
+          changes.backgroundFile.name,
+          changes.backgroundFile.type,
+          changes.backgroundFile.size,
+        ))
     ) {
       await Swal.fire({
         icon: "error",
         title: "Check presentation files",
-        text: `Use one PDF up to ${announcementPdfMaxBytes / (1024 * 1024)} MB or up to ${announcementMaxImages} JPG, PNG, or WebP images, each up to ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
+        text: `Use one PDF up to ${announcementPdfMaxBytes / (1024 * 1024)} MB or up to ${announcementMaxImages} JPG, PNG, or WebP slides, each up to ${announcementImageMaxBytes / (1024 * 1024)} MB. Background images must also be under ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
         confirmButtonText: "Okay",
       });
       return;
     }
 
-    const files = selectedPdf ? [selectedPdf] : slides;
     const announcementId = announcement?.id ?? crypto.randomUUID();
     setSubmitting(true);
     let uploadedPaths: string[] = [];
 
     try {
-      let presentation: PresentationUpload | undefined;
-      if (files.length > 0) {
+      const uploadFiles = async (
+        purpose: "presentation" | "background",
+        files: File[],
+      ) => {
+        if (files.length === 0) {
+          return [];
+        }
         const uploadResponse = await beginAnnouncementUploadsAction({
           announcementId,
+          purpose,
           files: files.map((file) => ({
             name: file.name,
             size: file.size,
@@ -302,18 +532,63 @@ export function AnnouncementManager({
             throw new Error("We couldn’t upload the presentation. Please try again.");
           }
           uploaded.push({ path: upload.path, name: upload.name });
-          uploadedPaths = uploaded.map(({ path }) => path);
+          uploadedPaths.push(upload.path);
         }
+        return uploaded;
+      };
 
-        presentation = selectedPdf
-          ? { type: "pdf", file: uploaded[0] }
-          : { type: "images", files: uploaded };
+      let presentation: PresentationUpload | null | undefined;
+      const uploadedPresentation = await uploadFiles(
+        "presentation",
+        pdfFile ? [pdfFile] : slides,
+      );
+      if (pdfFile) {
+        presentation = { type: "pdf", file: uploadedPresentation[0] };
+      } else if (slides.length > 0) {
+        presentation = {
+          type: "images",
+          files: [
+            ...(announcement?.slide_paths.flatMap((path, index) =>
+              changes.removedSlidePaths.includes(path) || announcement.pdf_path
+                ? []
+                : [{ path, name: announcement.slide_names[index] }],
+            ) ?? []),
+            ...uploadedPresentation,
+          ],
+        };
+      } else if (
+        changes.removedSlidePaths.length > 0 &&
+        announcement?.slide_paths.length
+      ) {
+        const remainingSlides = announcement.slide_paths.flatMap(
+          (path, index) =>
+            changes.removedSlidePaths.includes(path)
+              ? []
+              : [{ path, name: announcement.slide_names[index] }],
+        );
+        presentation =
+          remainingSlides.length > 0
+            ? { type: "images", files: remainingSlides }
+            : null;
+      } else if (changes.removePdf && announcement?.pdf_path) {
+        presentation = null;
       }
 
+      const uploadedBackground = await uploadFiles(
+        "background",
+        changes.backgroundFile ? [changes.backgroundFile] : [],
+      );
+      const background = changes.backgroundFile
+        ? uploadedBackground[0]
+        : changes.removeBackground
+          ? null
+          : undefined;
       const content = {
         title: String(formData.get("title") ?? ""),
         body: String(formData.get("body") ?? ""),
+        categories: changes.categories,
         presentation,
+        background,
       };
       const result = announcement
         ? await updateAnnouncementAction(announcementId, content)
@@ -378,12 +653,12 @@ export function AnnouncementManager({
   ) {
     const confirmation = await Swal.fire({
       icon: "warning",
-      title: archived ? "Restore announcement?" : "Archive announcement?",
+      title: archived ? "Restore announcement?" : "Hide announcement?",
       text: archived
         ? "This announcement will be visible on the public website again."
         : "This announcement will be hidden from the public website. Its presentation files will be retained.",
       showCancelButton: true,
-      confirmButtonText: archived ? "Restore" : "Archive",
+      confirmButtonText: archived ? "Restore" : "Hide announcement",
       cancelButtonText: "Cancel",
       reverseButtons: true,
     });
@@ -401,10 +676,10 @@ export function AnnouncementManager({
       router.refresh();
       await Swal.fire({
         icon: "success",
-        title: archived ? "Announcement restored" : "Announcement archived",
+        title: archived ? "Announcement restored" : "Announcement hidden",
         text: archived
           ? "The announcement is live on the public website."
-          : "The announcement is now hidden from the public website.",
+          : "The announcement is now hidden from the landing page. You can restore it later.",
         confirmButtonText: "Okay",
       });
     } catch (error) {
@@ -540,7 +815,19 @@ function AnnouncementList({
               <CardDescription>
                 {announcement.pdf_path
                   ? `PDF presentation: ${announcement.pdf_name}`
-                  : `${announcement.slide_paths.length} image slides`}
+                  : announcement.slide_paths.length > 0
+                    ? `${announcement.slide_paths.length} image slides`
+                    : "No presentation attached"}
+                {announcement.categories.length > 0
+                  ? ` · ${announcement.categories
+                      .map((category) =>
+                        category === "sunday_worship"
+                          ? "Sunday Worship"
+                          : "Prayer Meeting",
+                      )
+                      .join(", ")}`
+                  : ""}
+                {announcement.background_name ? " · Card background set" : ""}
                 {" · "}
                 {new Intl.DateTimeFormat("en", {
                   dateStyle: "medium",
@@ -565,7 +852,7 @@ function AnnouncementList({
                 ) : (
                   <Archive data-icon="inline-start" />
                 )}
-                {archived ? "Restore" : "Archive"}
+                {archived ? "Restore" : "Hide"}
               </Button>
             </div>
           </CardHeader>
@@ -575,7 +862,17 @@ function AnnouncementList({
                 {announcement.body}
               </p>
             )}
-            {announcement.slide_urls[0] ? (
+            {announcement.background_url ? (
+              <div className="relative aspect-video max-w-xl overflow-hidden rounded-lg bg-muted">
+                <Image
+                  alt={`${announcement.title} background preview`}
+                  className="object-cover"
+                  fill
+                  src={announcement.background_url}
+                  unoptimized
+                />
+              </div>
+            ) : announcement.slide_urls[0] ? (
               <div className="relative aspect-video max-w-xl overflow-hidden rounded-lg bg-muted">
                 <Image
                   alt={`${announcement.title} first slide preview`}
@@ -588,7 +885,7 @@ function AnnouncementList({
             ) : (
               <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <FileText aria-hidden="true" className="size-4" />
-                {announcement.pdf_name}
+                {announcement.pdf_name ?? "Text-only announcement"}
               </p>
             )}
             {announcement.archived_at && (
