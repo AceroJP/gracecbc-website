@@ -8,20 +8,17 @@ import {
   PanelsTopLeft,
 } from "lucide-react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
+import { formatAnnouncementDate, announcementBucket } from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
 import { RegistrationForm } from "@/components/public/registration-form";
+import {
+  AnnouncementViewer,
+  type PublicAnnouncement,
+} from "@/components/public/announcement-viewer";
 
 const websiteAreas = [
-  {
-    id: "announcements",
-    title: "Events & announcements",
-    description:
-      "Church events are published here; announcements are being prepared.",
-    icon: CalendarDays,
-    label: "Events live",
-  },
   {
     id: "schedules",
     title: "Worship schedules",
@@ -69,19 +66,54 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const turnstileSiteKey = getOptionalTurnstileSiteKey();
   const supabase = await createClient();
-  const { data: events, error } = await supabase
-    .from("events")
-    .select(
-      "id, title, description, event_date, end_date, starts_at, ends_at, location, registration_enabled, registration_fields, registration_deadline",
-    )
-    .is("archived_at", null)
-    .order("event_date", { ascending: true })
-    .order("starts_at", { ascending: true })
-    .limit(6);
+  const [
+    { data: events, error: eventsError },
+    { data: announcements, error: announcementsError },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select(
+        "id, title, description, event_date, end_date, starts_at, ends_at, location, registration_enabled, registration_fields, registration_deadline",
+      )
+      .is("archived_at", null)
+      .order("event_date", { ascending: true })
+      .order("starts_at", { ascending: true })
+      .limit(6),
+    supabase
+      .from("announcements")
+      .select(
+        "id, title, body, pdf_path, pdf_name, slide_paths, slide_names, created_at",
+      )
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ]);
 
-  if (error) {
-    throw new Error("Unable to load public events.", { cause: error });
+  if (eventsError) {
+    throw new Error("Unable to load public events.", { cause: eventsError });
   }
+  if (announcementsError) {
+    throw new Error("Unable to load public announcements.", {
+      cause: announcementsError,
+    });
+  }
+
+  const storage = supabase.storage.from(announcementBucket);
+  const publicAnnouncements: (PublicAnnouncement & { created_at: string })[] =
+    announcements.map((announcement) => ({
+      id: announcement.id,
+      title: announcement.title,
+      body: announcement.body,
+      pdf_name: announcement.pdf_name,
+      pdf_url: announcement.pdf_path
+        ? storage.getPublicUrl(announcement.pdf_path).data.publicUrl
+        : null,
+      slide_names: announcement.slide_names,
+      slide_urls: announcement.slide_paths.map(
+        (path) => storage.getPublicUrl(path).data.publicUrl,
+      ),
+      created_at: announcement.created_at,
+    }));
 
   return (
     <main>
@@ -103,13 +135,21 @@ export default async function Home() {
               An approved introduction to Grace Christian Baptist Church will
               appear here. This space is reserved for your welcome message.
             </p>
-            <a
-              className="mt-9 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-brand transition-colors hover:bg-white/85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-              href="#events"
-            >
-              See upcoming events
-              <ArrowUpRight aria-hidden="true" className="size-4" />
-            </a>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <a
+                className="inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-brand transition-colors hover:bg-white/85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                href="#events"
+              >
+                See upcoming events
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </a>
+              <a
+                className="inline-flex min-h-12 items-center rounded-full border border-white/35 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                href="#announcements"
+              >
+                Latest announcements
+              </a>
+            </div>
           </div>
 
           <div
@@ -127,6 +167,54 @@ export default async function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section
+        aria-labelledby="announcements-heading"
+        className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+        id="announcements"
+      >
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
+            Church updates
+          </p>
+          <h2
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+            id="announcements-heading"
+          >
+            Announcements
+          </h2>
+          <p className="mt-3 text-base leading-7 text-muted-foreground">
+            Sunday service, prayer meeting, and other church announcements.
+          </p>
+        </div>
+        {publicAnnouncements.length === 0 ? (
+          <p className="mt-8 rounded-2xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted-foreground">
+            No announcements have been posted yet. Please check back soon.
+          </p>
+        ) : (
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {publicAnnouncements.map((announcement) => (
+              <article
+                className="rounded-2xl border border-border bg-card p-6"
+                key={announcement.id}
+              >
+                <p className="text-xs font-medium text-brand">
+                  {formatAnnouncementDate(announcement.created_at)}
+                </p>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight">
+                  {announcement.title}
+                </h3>
+                {announcement.body && (
+                  <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                    {announcement.body}
+                  </p>
+                )}
+                <AnnouncementViewer announcement={announcement} />
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section
@@ -221,8 +309,8 @@ export default async function Home() {
             Everything visitors need, in one welcoming place.
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            These are the planned content areas. Details and materials will be
-            added when approved church information is available.
+            Schedules, devotionals, and other church information will be added
+            as approved details become available.
           </p>
         </div>
 
