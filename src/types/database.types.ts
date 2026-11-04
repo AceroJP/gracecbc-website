@@ -23,6 +23,7 @@ export type Database = {
           registration_fields: Json;
           registration_deadline: string | null;
           registration_capacity: number | null;
+          archived_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -39,6 +40,7 @@ export type Database = {
           registration_fields?: Json;
           registration_deadline?: string | null;
           registration_capacity?: number | null;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -55,6 +57,7 @@ export type Database = {
           registration_fields?: Json;
           registration_deadline?: string | null;
           registration_capacity?: number | null;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

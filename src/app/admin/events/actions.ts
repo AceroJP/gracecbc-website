@@ -135,12 +135,109 @@ export async function updateEventAction(formData: FormData) {
   redirect("/admin/events?notice=updated");
 }
 
-export async function deleteEventAction(formData: FormData) {
+async function archiveEvent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+) {
+  const archivedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("events")
+    .update({
+      archived_at: archivedAt,
+      updated_at: archivedAt,
+    })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    reportDatabaseError("Unable to archive the event.", error);
+  }
+
+  if (data) {
+    return true;
+  }
+
+  const { data: existingEvent, error: lookupError } = await supabase
+    .from("events")
+    .select("archived_at")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (lookupError) {
+    reportDatabaseError("Unable to verify the event.", lookupError);
+  }
+
+  return existingEvent?.archived_at !== null && existingEvent !== null;
+}
+
+export async function archiveEventAction(eventId: string) {
   await requireAdminUser();
-  const id = eventIdSchema.safeParse(formData.get("id"));
+  const id = eventIdSchema.safeParse(eventId);
 
   if (!id.success) {
-    redirect("/admin/events?error=invalid");
+    return "invalid" as const;
+  }
+
+  const supabase = await createClient();
+  const archived = await archiveEvent(supabase, id.data);
+
+  if (!archived) {
+    return "not-found" as const;
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/events");
+  return "archived" as const;
+}
+
+export async function restoreEventAction(eventId: string) {
+  await requireAdminUser();
+  const id = eventIdSchema.safeParse(eventId);
+
+  if (!id.success) {
+    return "invalid" as const;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ archived_at: null, updated_at: new Date().toISOString() })
+    .eq("id", id.data)
+    .not("archived_at", "is", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    reportDatabaseError("Unable to restore the event.", error);
+  }
+
+  if (!data) {
+    const { data: existingEvent, error: lookupError } = await supabase
+      .from("events")
+      .select("id")
+      .eq("id", id.data)
+      .maybeSingle();
+
+    if (lookupError) {
+      reportDatabaseError("Unable to verify the event.", lookupError);
+    }
+
+    return existingEvent ? ("restored" as const) : ("not-found" as const);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/events");
+  return "restored" as const;
+}
+
+export async function deleteEventAction(eventId: string) {
+  await requireAdminUser();
+  const id = eventIdSchema.safeParse(eventId);
+
+  if (!id.success) {
+    return "invalid" as const;
   }
 
   const supabase = await createClient();
@@ -157,7 +254,14 @@ export async function deleteEventAction(formData: FormData) {
   }
 
   if (count && count > 0) {
-    redirect("/admin/events?error=has-registrations");
+    const archived = await archiveEvent(supabase, id.data);
+    if (!archived) {
+      return "not-found" as const;
+    }
+
+    revalidatePath("/");
+    revalidatePath("/admin/events");
+    return "archived" as const;
   }
 
   const { data, error } = await supabase
@@ -168,14 +272,24 @@ export async function deleteEventAction(formData: FormData) {
     .maybeSingle();
 
   if (error) {
-    reportDatabaseError("Unable to delete the event.", error);
+    if (error.code === "23503") {
+      const racedArchive = await archiveEvent(supabase, id.data);
+      if (racedArchive) {
+        revalidatePath("/");
+        revalidatePath("/admin/events");
+        return "archived" as const;
+      }
+      reportDatabaseError("Unable to delete the event.", error);
+    } else {
+      reportDatabaseError("Unable to delete the event.", error);
+    }
   }
 
   if (!data) {
-    redirect("/admin/events?error=not-found");
+    return "not-found" as const;
   }
 
-  revalidatePath("/");
   revalidatePath("/admin/events");
-  redirect("/admin/events?notice=deleted");
+  revalidatePath("/");
+  return "deleted" as const;
 }

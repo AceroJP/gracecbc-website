@@ -74,6 +74,7 @@ export default async function Home() {
     .select(
       "id, title, description, event_date, end_date, starts_at, ends_at, location, registration_enabled, registration_fields, registration_deadline",
     )
+    .is("archived_at", null)
     .order("event_date", { ascending: true })
     .order("starts_at", { ascending: true })
     .limit(6);

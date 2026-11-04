@@ -9,7 +9,11 @@ import {
 import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
 import { RegistrationFieldsEditor } from "@/components/admin/registration-fields-editor";
-import { createEventAction, deleteEventAction, updateEventAction } from "./actions";
+import { EventActions } from "@/components/admin/event-actions";
+import {
+  createEventAction,
+  updateEventAction,
+} from "./actions";
 import {
   Card,
   CardContent,
@@ -27,6 +31,14 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -41,14 +53,11 @@ type EventsPageProps = {
 const notices: Record<string, string> = {
   created: "Event saved and published on the public website.",
   updated: "Event changes saved and published.",
-  deleted: "Event removed from the public website.",
 };
 
 const errors: Record<string, string> = {
   invalid: "Check the event details and try again.",
   "not-found": "That event could not be found. Refresh the list and try again.",
-  "has-registrations":
-    "This event has registrations and cannot be deleted. Disable registration instead to preserve participant records.",
   "registration-form":
     "Check the registration form. Enabled forms need at least one valid field, and dropdowns need at least two unique options.",
 };
@@ -158,7 +167,9 @@ function EventFields({
   );
 }
 
-async function getEvents(): Promise<ChurchEvent[]> {
+type AdminEvent = ChurchEvent & { registrationCount: number };
+
+async function getEvents(): Promise<AdminEvent[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
@@ -170,11 +181,141 @@ async function getEvents(): Promise<ChurchEvent[]> {
     throw new Error("Unable to load events.", { cause: error });
   }
 
-  return data;
+  return Promise.all(
+    data.map(async (event) => {
+      const { count, error: countError } = await supabase
+        .from("event_registrations")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", event.id);
+
+      if (countError) {
+        throw new Error("Unable to count event registrations.", {
+          cause: countError,
+        });
+      }
+
+      return { ...event, registrationCount: count ?? 0 };
+    }),
+  );
+}
+
+function EditEventDialog({ event }: { event: ChurchEvent }) {
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <Button size="sm" type="button" variant="outline" />
+        }
+      >
+        Edit event
+      </DialogTrigger>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Edit event</DialogTitle>
+          <DialogDescription>
+            Update the event details and registration form. Changes are
+            published immediately.
+          </DialogDescription>
+        </DialogHeader>
+        <form action={updateEventAction} className="flex flex-col gap-5">
+          <input name="id" type="hidden" value={event.id} />
+          <EventFields event={event} prefix={`event-${event.id}`} />
+          <Button className="w-fit" type="submit">
+            Save and publish changes
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EventList({
+  events,
+  archived = false,
+}: {
+  events: AdminEvent[];
+  archived?: boolean;
+}) {
+  if (events.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <CalendarDays
+            aria-hidden="true"
+            className="mx-auto size-8 text-muted-foreground"
+          />
+          <p className="mt-3 text-sm font-medium">
+            {archived ? "No archived events" : "No published events"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {archived
+              ? "Archived events will appear here and can be restored."
+              : "Events you add will appear here and on the public homepage."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {events.map((event) => (
+        <Card key={event.id}>
+          <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
+            <div className="grid gap-2">
+              <CardTitle>{event.title}</CardTitle>
+              <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays aria-hidden="true" className="size-4" />
+                  {formatEventDateRange(event.event_date, event.end_date)} ·{" "}
+                  {formatEventTime(event.starts_at)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin aria-hidden="true" className="size-4" />
+                  {event.location}
+                </span>
+                <span>
+                  {event.registrationCount}{" "}
+                  {event.registrationCount === 1 ? "participant" : "participants"}
+                </span>
+                <span>
+                  {event.registration_enabled
+                    ? "Registration enabled"
+                    : "Registration off"}
+                </span>
+              </CardDescription>
+            </div>
+            <EventActions
+              archived={archived}
+              eventId={event.id}
+              eventTitle={event.title}
+              registrationCount={event.registrationCount}
+            />
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                href={`/admin/events/${event.id}/registrations`}
+              >
+                View registrations
+              </Link>
+              {!archived && <EditEventDialog event={event} />}
+            </div>
+            <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
+              {event.description}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 export default async function EventsPage({ searchParams }: EventsPageProps) {
-  const [events, params] = await Promise.all([getEvents(), searchParams]);
+  const [allEvents, params] = await Promise.all([getEvents(), searchParams]);
+  const events = allEvents.filter((event) => !event.archived_at);
+  const archivedEvents = allEvents.filter((event) => event.archived_at);
   const notice = params.notice ? notices[params.notice] : undefined;
   const error = params.error ? errors[params.error] : undefined;
 
@@ -249,91 +390,27 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             </p>
           </div>
         </div>
-
-        {events.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center">
-              <CalendarDays
-                aria-hidden="true"
-                className="mx-auto size-8 text-muted-foreground"
-              />
-              <p className="mt-3 text-sm font-medium">No events yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Events you add will appear here and on the public homepage.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {events.map((event) => (
-              <Card key={event.id}>
-                <CardHeader className="sm:flex sm:flex-row sm:items-start sm:justify-between">
-                  <div className="grid gap-2">
-                    <CardTitle>{event.title}</CardTitle>
-                    <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CalendarDays aria-hidden="true" className="size-4" />
-                        {formatEventDateRange(
-                          event.event_date,
-                          event.end_date,
-                        )}{" "}
-                        ·{" "}
-                        {formatEventTime(event.starts_at)}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin aria-hidden="true" className="size-4" />
-                        {event.location}
-                      </span>
-                      <span>
-                        {event.registration_enabled
-                          ? "Registration enabled"
-                          : "Registration off"}
-                      </span>
-                    </CardDescription>
-                  </div>
-                  <form action={deleteEventAction}>
-                    <input name="id" type="hidden" value={event.id} />
-                    <Button
-                      className="mt-3 sm:mt-0"
-                      size="sm"
-                      type="submit"
-                      variant="destructive"
-                    >
-                      Delete
-                    </Button>
-                  </form>
-                </CardHeader>
-                <CardContent>
-                  <Link
-                    className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                    href={`/admin/events/${event.id}/registrations`}
-                  >
-                    View registrations
-                  </Link>
-                  <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                    {event.description}
-                  </p>
-                  <details className="mt-5 border-t border-border pt-4">
-                    <summary className="w-fit cursor-pointer text-sm font-medium text-primary">
-                      Edit event
-                    </summary>
-                    <form
-                      action={updateEventAction}
-                      className="mt-5 flex flex-col gap-5"
-                    >
-                      <input name="id" type="hidden" value={event.id} />
-                      <EventFields event={event} prefix={`event-${event.id}`} />
-                      <Button className="w-fit" type="submit">
-                        Save and publish changes
-                      </Button>
-                    </form>
-                  </details>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <EventList events={events} />
       </section>
+
+      {archivedEvents.length > 0 && (
+        <section aria-labelledby="archived-events-heading" className="mt-10">
+          <div className="mb-4">
+            <h2
+              className="text-lg font-semibold tracking-tight"
+              id="archived-events-heading"
+            >
+              Archived events
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {archivedEvents.length} archived{" "}
+              {archivedEvents.length === 1 ? "event" : "events"}; participant
+              records are retained.
+            </p>
+          </div>
+          <EventList archived events={archivedEvents} />
+        </section>
+      )}
     </>
   );
 }

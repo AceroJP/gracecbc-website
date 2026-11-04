@@ -91,7 +91,7 @@ Supabase SSR session-cookie refresh is wired through the Next.js proxy. Authenti
 
 ### Events content
 
-The Events admin page creates, updates, and deletes church events stored in the same Supabase project used for authentication. Saving an event publishes it immediately on the public homepage. Events may have an optional end date for multi-day events; leave it blank for a one-day event. Event dates and times are stored as local church date/time values.
+The Events admin page creates, edits, archives, restores, and deletes church events stored in the same Supabase project used for authentication. Saving an event publishes it immediately on the public homepage. Editing opens in a responsive modal. Archiving removes an event from the public homepage while retaining its participant registrations; deleting an event with registrations prompts the admin to archive it instead. Events may have an optional end date for multi-day events; leave it blank for a one-day event. Event dates and times are stored as local church date/time values.
 
 Before deploying the Events feature, apply the migration files in `supabase/migrations/` to the connected Supabase project, in filename order. In the Supabase Dashboard, open **SQL Editor**, paste and run each migration that has not already been applied. Do not rerun migrations on an existing database; for an existing Events installation, apply only the new migration. The migrations grant public event reads and restrict event create, update, and delete operations to signed-in users whose server-managed `app_metadata.role` is `admin`.
 
