@@ -15,7 +15,7 @@ export function PublicFooter() {
         </div>
         <Link
           className="w-fit text-sm font-medium text-white/80 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
-          href="/auth/login"
+          href="/login"
         >
           Admin sign in
         </Link>

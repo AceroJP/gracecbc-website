@@ -46,5 +46,5 @@ export async function signOutAction() {
     throw error;
   }
 
-  redirect("/auth/login");
+  redirect("/login");
 }

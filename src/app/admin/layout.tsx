@@ -25,11 +25,11 @@ async function AdminContent({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   if (user.app_metadata?.role !== "admin") {
-    redirect("/auth/login?error=unauthorized");
+    redirect("/login?error=unauthorized");
   }
 
   return <AdminShell userEmail={user.email ?? ""}>{children}</AdminShell>;

@@ -83,10 +83,10 @@ Supabase SSR session-cookie refresh is wired through the Next.js proxy. Authenti
 
 ### Admin authentication and access
 
-- Visit `/auth/login` and sign in with an existing Supabase Auth email/password account. Public sign-up is not provided.
+- Visit `/login` and sign in with an existing Supabase Auth email/password account. Public sign-up is not provided. The older `/auth/login` path redirects to `/login`.
 - Every `/admin` route checks the signed-in user on the server. Only a user whose server-managed `app_metadata.role` is exactly `admin` can enter the admin workspace.
 - Grant administrator access to the intended account using a trusted server-side Supabase Admin API operation or another secure administrative process that updates **app metadata** to `{ "role": "admin" }`. Do not use user-editable `user_metadata` for authorization. Never put a service-role key in this application or in a `NEXT_PUBLIC_*` variable.
-- Add the production site URL and `/auth/login`-related redirect URLs to Supabase Auth's allowed URLs when required by your project settings.
+- Add the production site URL and `/login`-related redirect URLs to Supabase Auth's allowed URLs when required by your project settings.
 - Sign out using the control in the admin header.
 
 The current repository does not yet include database migrations or application tables, and no database schema, row-level security policies, content publishing, or Realtime behavior is implemented. An empty `supabase/migrations/` directory is reserved for future migrations.
