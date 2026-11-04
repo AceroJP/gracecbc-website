@@ -8,18 +8,20 @@ import {
   Church,
   FileImage,
   LayoutDashboard,
+  LogOut,
   Megaphone,
   Menu,
   MonitorPlay,
   PanelsTopLeft,
   Settings2,
-  ShieldAlert,
   Waves,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { signOutAction } from "@/app/auth/actions";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -101,14 +103,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent/65 p-4">
         <p className="text-xs font-semibold">Setup in progress</p>
         <p className="mt-1 text-xs leading-5 text-sidebar-foreground/60">
-          Admin tools are interface placeholders and are not protected yet.
+          Admin access is protected. Website management tools are still
+          interface placeholders.
         </p>
       </div>
     </>
   );
 }
 
-export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
+export function AdminShell({
+  children,
+  userEmail,
+}: Readonly<{ children: ReactNode; userEmail: string }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const currentPage =
@@ -183,25 +189,29 @@ export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
             <span aria-hidden="true" className="h-7 w-px bg-border" />
             <div className="flex items-center gap-2.5">
               <span className="flex size-8 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand">
-                ?
+                {userEmail.charAt(0).toUpperCase() || "A"}
               </span>
-              <span className="hidden text-xs leading-4 sm:block">
-                <span className="block font-medium">Profile placeholder</span>
-                <span className="text-muted-foreground">Setup pending</span>
+              <span className="hidden max-w-48 truncate text-xs leading-4 sm:block">
+                <span className="block truncate font-medium">{userEmail}</span>
+                <span className="text-muted-foreground">Administrator</span>
               </span>
             </div>
+            <form action={signOutAction}>
+              <Button
+                aria-label="Sign out"
+                className="size-9"
+                size="icon"
+                title="Sign out"
+                type="submit"
+                variant="ghost"
+              >
+                <LogOut aria-hidden="true" />
+              </Button>
+            </form>
           </div>
         </header>
 
         <main className="mx-auto w-full max-w-[1440px] px-4 py-7 sm:px-8 sm:py-9">
-          <div className="mb-7 flex items-start gap-3 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-950">
-            <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <p className="text-xs leading-5">
-              <span className="font-semibold">Unprotected interface:</span>{" "}
-              authentication and authorization have not been implemented. Do
-              not enter sensitive information here.
-            </p>
-          </div>
           {children}
         </main>
       </div>

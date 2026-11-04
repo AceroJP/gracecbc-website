@@ -15,9 +15,9 @@ export function PublicFooter() {
         </div>
         <Link
           className="w-fit text-sm font-medium text-white/80 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
-          href="/admin/dashboard"
+          href="/auth/login"
         >
-          Admin area
+          Admin sign in
         </Link>
         <p className="border-t border-white/15 pt-5 text-xs text-white/50 md:col-span-2">
           Church content and contact information are placeholders until

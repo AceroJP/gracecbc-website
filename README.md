@@ -79,7 +79,17 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The browser and server Supabase clients use the public URL and publishable key. Never put a Supabase secret/service-role key in a `NEXT_PUBLIC_*` variable or expose it to browser code. `.env*` files are ignored by Git; `.env.example` contains variable names only.
 
-Supabase SSR session-cookie refresh is wired through the Next.js proxy. The current repository does not yet include database migrations or application tables, and no database schema, row-level security policies, content publishing, or Realtime behavior is implemented. An empty `supabase/migrations/` directory is reserved for future migrations.
+Supabase SSR session-cookie refresh is wired through the Next.js proxy. Authentication uses the Supabase project configured in Vercel; no local database or application schema is required for sign-in.
+
+### Admin authentication and access
+
+- Visit `/auth/login` and sign in with an existing Supabase Auth email/password account. Public sign-up is not provided.
+- Every `/admin` route checks the signed-in user on the server. Only a user whose server-managed `app_metadata.role` is exactly `admin` can enter the admin workspace.
+- Grant administrator access to the intended account using a trusted server-side Supabase Admin API operation or another secure administrative process that updates **app metadata** to `{ "role": "admin" }`. Do not use user-editable `user_metadata` for authorization. Never put a service-role key in this application or in a `NEXT_PUBLIC_*` variable.
+- Add the production site URL and `/auth/login`-related redirect URLs to Supabase Auth's allowed URLs when required by your project settings.
+- Sign out using the control in the admin header.
+
+The current repository does not yet include database migrations or application tables, and no database schema, row-level security policies, content publishing, or Realtime behavior is implemented. An empty `supabase/migrations/` directory is reserved for future migrations.
 
 ## Project structure
 
@@ -87,7 +97,8 @@ Supabase SSR session-cookie refresh is wired through the Next.js proxy. The curr
 src/
   app/
     (public)/             Public website routes and layout
-    admin/                Admin dashboard and placeholder sections
+    auth/                 Supabase email/password sign-in and sign-out actions
+    admin/                Admin dashboard and role-protected sections
     error.tsx             Application error boundary
     globals.css           Tailwind import and design tokens
     layout.tsx            Root layout, fonts, and metadata
@@ -123,8 +134,8 @@ Other key files: `components.json` configures shadcn/Base Nova and aliases; `esl
 ## Current implementation status
 
 - **Public website:** responsive shell and content-area placeholders are in place. Church-specific schedules, addresses, contact information, events, and other content remain pending confirmation.
-- **Admin workspace:** responsive dashboard and placeholder sections are in place. The interface is **not protected** by authentication or authorization; do not enter sensitive information.
-- **Supabase:** environment validation, browser/server clients, and session refresh are implemented. Auth screens, admin access control, database schema, RLS policies, storage, and Realtime features are not implemented.
+- **Admin workspace:** responsive dashboard and placeholder sections are in place. Server-side checks require a signed-in Supabase user with `app_metadata.role === "admin"`.
+- **Supabase:** environment validation, browser/server clients, session refresh, email/password sign-in, and admin role checks are implemented. Database schema, RLS policies, storage, and Realtime features are not implemented.
 - **Design system:** Tailwind theme tokens and reusable button, input, card, and dialog components are available.
 - **Verification:** lint, TypeScript, and production build passed during Phase 9. Browser checks confirmed public/admin pages and responsive layouts at mobile, tablet, and desktop widths.
 
@@ -132,6 +143,6 @@ Other key files: `components.json` configures shadcn/Base Nova and aliases; `esl
 
 - Confirm and supply church-approved public website content.
 - Design database tables and migrations, then define and verify row-level security policies before storing application data.
-- Implement administrator sign-in and enforce authorization on protected routes and server-side data operations before using the admin workspace for real management.
+- Grant `app_metadata.role = "admin"` to the intended administrator account using a trusted administrative process.
 - Configure and verify Supabase Auth redirect URLs when authentication is implemented.
 - Add and test storage, publishing, and Realtime behavior only when those features are approved and their policies are in place.
