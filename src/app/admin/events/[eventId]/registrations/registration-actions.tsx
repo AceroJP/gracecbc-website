@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  philippinesPhoneNumberLength,
   registrationUploadAccept,
   registrationUploadMaxBytes,
   type RegistrationField,
@@ -520,13 +521,81 @@ export function RegistrationActions({
                         }
                         defaultValue={answerString(value)}
                         id={fieldId}
-                        maxLength={field.type === "phone" ? 32 : 254}
+                        maxLength={
+                          field.type === "phone"
+                            ? field.phoneDigitsOnly
+                              ? philippinesPhoneNumberLength
+                              : 32
+                            : field.type === "number"
+                              ? 20
+                              : 254
+                        }
+                        inputMode={
+                          field.type === "phone"
+                            ? field.phoneDigitsOnly
+                              ? "numeric"
+                              : "tel"
+                            : field.type === "number"
+                              ? "numeric"
+                              : undefined
+                        }
                         name={field.id}
+                        pattern={
+                          field.type === "phone"
+                            ? field.phoneDigitsOnly
+                              ? `[0-9]{${philippinesPhoneNumberLength}}`
+                              : "(?=(?:\\D*\\d){5})[+]?[0-9\\s\\x28\\x29.\\-]{5,32}"
+                            : field.type === "number"
+                              ? "[0-9]{1,20}"
+                              : undefined
+                        }
                         required={field.required}
+                        placeholder={
+                          field.type === "phone"
+                            ? "e.g. 0912345678"
+                            : undefined
+                        }
+                        onBeforeInput={
+                          field.type === "phone" && field.phoneDigitsOnly
+                            ? (event) => {
+                                const inputEvent =
+                                  event.nativeEvent as InputEvent;
+                                if (
+                                  inputEvent.data &&
+                                  /\D/.test(inputEvent.data)
+                                ) {
+                                  event.preventDefault();
+                                }
+                              }
+                            : undefined
+                        }
+                        onPaste={
+                          field.type === "phone" && field.phoneDigitsOnly
+                            ? (event) => {
+                                if (
+                                  /\D/.test(event.clipboardData.getData("text"))
+                                ) {
+                                  event.preventDefault();
+                                }
+                              }
+                            : undefined
+                        }
+                        onChange={
+                          field.type === "phone" && field.phoneDigitsOnly
+                            ? (event) => {
+                                event.currentTarget.value =
+                                  event.currentTarget.value
+                                    .replace(/\D/g, "")
+                                    .slice(0, philippinesPhoneNumberLength);
+                              }
+                            : undefined
+                        }
                         type={
                           field.type === "email"
                             ? "email"
-                            : field.type === "date" || field.type === "time"
+                            : field.type === "phone"
+                              ? "tel"
+                              : field.type === "date" || field.type === "time"
                               ? field.type
                               : "text"
                         }

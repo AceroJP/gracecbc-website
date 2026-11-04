@@ -5,6 +5,7 @@ export const registrationFieldTypes = [
   "long_text",
   "email",
   "phone",
+  "number",
   "select",
   "checkbox",
   "checkboxes",
@@ -15,6 +16,7 @@ export const registrationFieldTypes = [
 ] as const;
 
 export const registrationUploadMaxBytes = 5 * 1024 * 1024;
+export const philippinesPhoneNumberLength = 11;
 export const registrationFileBucket = "event-registration-files";
 export const registrationUploadTypes = {
   "application/pdf": [".pdf"],
@@ -40,6 +42,7 @@ export const registrationFieldSchema = z
     label: z.string().trim().min(1).max(80),
     type: z.enum(registrationFieldTypes),
     required: z.boolean(),
+    phoneDigitsOnly: z.boolean().default(false),
     options: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   })
   .superRefine((field, context) => {
@@ -125,6 +128,73 @@ export function parseRegistrationFileAnswer(
 const emailSchema = z.email();
 const phoneSchema = /^[+]?[0-9\s().-]{5,32}$/;
 const timeSchema = /^([01]\d|2[0-3]):[0-5]\d$/;
+const wholeNumberSchema = /^[0-9]{1,20}$/;
+
+function getRegistrationAnswerMaxLength(field: RegistrationField) {
+  return field.type === "long_text"
+    ? 2000
+    : field.type === "email"
+      ? 254
+      : field.type === "phone"
+        ? field.phoneDigitsOnly
+          ? philippinesPhoneNumberLength
+          : 32
+        : field.type === "number"
+          ? 20
+          : field.type === "select"
+            ? 80
+            : field.type === "date" || field.type === "time"
+              ? 16
+              : 200;
+}
+
+export function isRegistrationAnswerValid(
+  field: RegistrationField,
+  rawValue: string,
+) {
+  const value = rawValue.trim();
+  if (!value) {
+    return !field.required;
+  }
+
+  if (value.length > getRegistrationAnswerMaxLength(field)) {
+    return false;
+  }
+
+  if (field.type === "email" && !emailSchema.safeParse(value).success) {
+    return false;
+  }
+
+  if (
+    field.type === "phone" &&
+    (field.phoneDigitsOnly
+      ? !new RegExp(`^[0-9]{${philippinesPhoneNumberLength}}$`).test(value)
+      : !phoneSchema.test(value) || (value.match(/[0-9]/g)?.length ?? 0) < 5)
+  ) {
+    return false;
+  }
+
+  if (field.type === "number" && !wholeNumberSchema.test(value)) {
+    return false;
+  }
+
+  if (
+    ["select", "multiple_choice"].includes(field.type) &&
+    !field.options?.includes(value)
+  ) {
+    return false;
+  }
+
+  if (field.type === "date" && !z.iso.date().safeParse(value).success) {
+    return false;
+  }
+
+  if (field.type === "time" && !timeSchema.test(value)) {
+    return false;
+  }
+
+  return true;
+}
 
 export function getRegistrationUploadExtension(file: File) {
   return getRegistrationUploadExtensionFromMetadata(
@@ -239,48 +309,7 @@ export function validateRegistrationAnswers(
     }
 
     const value = typeof values[0] === "string" ? values[0].trim() : "";
-    const maxLength =
-      field.type === "long_text"
-        ? 2000
-        : field.type === "email"
-          ? 254
-          : field.type === "phone"
-            ? 32
-            : field.type === "select"
-              ? 80
-              : field.type === "date" || field.type === "time"
-                ? 16
-              : 200;
-
-    if ((field.required && !value) || value.length > maxLength) {
-      return null;
-    }
-
-    if (
-      field.type === "email" &&
-      value &&
-      !emailSchema.safeParse(value).success
-    ) {
-      return null;
-    }
-
-    if (field.type === "phone" && value && !phoneSchema.test(value)) {
-      return null;
-    }
-
-    if (
-      ["select", "multiple_choice"].includes(field.type) &&
-      value &&
-      !field.options?.includes(value)
-    ) {
-      return null;
-    }
-
-    if (field.type === "date" && value && !z.iso.date().safeParse(value).success) {
-      return null;
-    }
-
-    if (field.type === "time" && value && !timeSchema.test(value)) {
+    if (!isRegistrationAnswerValid(field, value)) {
       return null;
     }
 

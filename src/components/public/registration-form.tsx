@@ -37,12 +37,15 @@ import {
 } from "@/app/(public)/registration-actions";
 import {
   getRegistrationUploadExtension,
+  isRegistrationAnswerValid,
   isRegistrationUploadContentType,
+  philippinesPhoneNumberLength,
   registrationUploadAccept,
   registrationUploadMaxBytes,
   type RegistrationField,
 } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "cn";
 
 declare global {
   interface Window {
@@ -219,9 +222,59 @@ function RegistrationFormContent({
     >
   >({});
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [completedFields, setCompletedFields] = useState<Set<string>>(
+    () => new Set(),
+  );
   const formId = useId();
   const previousState = useRef(state);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  function refreshCompletedFields(form: HTMLFormElement) {
+    const formData = new FormData(form);
+    const next = new Set<string>();
+
+    for (const field of fields) {
+      if (field.type === "file_upload") {
+        if (uploadedFiles[field.id]) {
+          next.add(field.id);
+        }
+        continue;
+      }
+
+      const values = formData.getAll(field.id);
+      if (field.type === "checkbox") {
+        if (values.length === 1 && values[0] === "true") {
+          next.add(field.id);
+        }
+        continue;
+      }
+
+      if (field.type === "checkboxes" || field.type === "multiple_choice") {
+        const selected = values.filter(
+          (value): value is string => typeof value === "string",
+        );
+        if (
+          selected.length > 0 &&
+          selected.every((value) => field.options?.includes(value))
+        ) {
+          next.add(field.id);
+        }
+        continue;
+      }
+
+      const value = values[0];
+      if (
+        values.length === 1 &&
+        typeof value === "string" &&
+        value.trim() &&
+        isRegistrationAnswerValid(field, value)
+      ) {
+        next.add(field.id);
+      }
+    }
+
+    setCompletedFields(next);
+  }
 
   useEffect(() => {
     if (
@@ -354,6 +407,7 @@ function RegistrationFormContent({
             ticket: upload.ticket,
           },
         }));
+        setCompletedFields((current) => new Set(current).add(upload.fieldId));
       }
 
       setToken("");
@@ -419,6 +473,7 @@ function RegistrationFormContent({
         className="flex flex-col gap-5"
         encType="multipart/form-data"
         onSubmit={handleFormSubmit}
+        onChange={(event) => refreshCompletedFields(event.currentTarget)}
       >
       {deadline && (
         <p className="text-sm text-muted-foreground">
@@ -433,11 +488,15 @@ function RegistrationFormContent({
       <FieldGroup>
         {fields.map((field) => {
           const fieldId = `${formId}-${field.id}`;
+          const isComplete = completedFields.has(field.id);
 
           if (field.type === "checkbox") {
             return (
               <Field
-                className="flex-row items-start gap-3"
+                className={cn(
+                  "flex-row items-start gap-3 rounded-md border border-transparent p-3",
+                  isComplete && "border-success",
+                )}
                 key={field.id}
               >
                 <input
@@ -451,7 +510,10 @@ function RegistrationFormContent({
                 <FieldLabel htmlFor={fieldId}>
                   {field.label}
                   {field.required && (
-                    <span aria-hidden="true" className="text-destructive">
+                    <span
+                      aria-hidden="true"
+                      className={isComplete ? "text-foreground" : "text-destructive"}
+                    >
                       {" "}*
                     </span>
                   )}
@@ -466,11 +528,20 @@ function RegistrationFormContent({
           ) {
             const isCheckboxGroup = field.type === "checkboxes";
             return (
-              <FieldSet key={field.id}>
+              <FieldSet
+                className={cn(
+                  "rounded-md border border-transparent p-3",
+                  isComplete && "border-success",
+                )}
+                key={field.id}
+              >
                 <FieldLegend variant="label">
                   {field.label}
                   {field.required && (
-                    <span aria-hidden="true" className="text-destructive">
+                    <span
+                      aria-hidden="true"
+                      className={isComplete ? "text-foreground" : "text-destructive"}
+                    >
                       {" "}*
                     </span>
                   )}
@@ -505,16 +576,27 @@ function RegistrationFormContent({
 
           return (
             <Field key={field.id}>
-              <FieldLabel htmlFor={fieldId}>
+              <FieldLabel
+                className={isComplete ? "text-foreground" : undefined}
+                htmlFor={fieldId}
+              >
                 {field.label}
                 {field.required && (
-                  <span aria-hidden="true" className="text-destructive">
+                  <span
+                    aria-hidden="true"
+                    className={isComplete ? "text-foreground" : "text-destructive"}
+                  >
                     {" "}*
                   </span>
                 )}
               </FieldLabel>
               {field.type === "long_text" ? (
                 <Textarea
+                  className={
+                    isComplete
+                      ? "border-success focus-visible:border-success"
+                      : undefined
+                  }
                   id={fieldId}
                   maxLength={2000}
                   name={field.id}
@@ -523,7 +605,10 @@ function RegistrationFormContent({
                 />
               ) : field.type === "select" ? (
                 <select
-                  className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+                  className={cn(
+                    "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring",
+                    isComplete && "border-success",
+                  )}
                   defaultValue=""
                   id={fieldId}
                   name={field.id}
@@ -542,16 +627,22 @@ function RegistrationFormContent({
                 <>
                   <Input
                     accept={registrationUploadAccept}
+                    className={isComplete ? "border-success" : undefined}
                     disabled={Boolean(uploadedFiles[field.id])}
                     id={fieldId}
                     name={field.id}
-                    onChange={() =>
+                    onChange={() => {
+                      setCompletedFields((current) => {
+                        const next = new Set(current);
+                        next.delete(field.id);
+                        return next;
+                      });
                       setUploadedFiles((current) => {
                         const next = { ...current };
                         delete next[field.id];
                         return next;
-                      })
-                    }
+                      });
+                    }}
                     ref={(element) => {
                       fileInputRefs.current[field.id] = element;
                     }}
@@ -573,6 +664,11 @@ function RegistrationFormContent({
                           setUploadedFiles((current) => {
                             const next = { ...current };
                             delete next[field.id];
+                            return next;
+                          });
+                          setCompletedFields((current) => {
+                            const next = new Set(current);
+                            next.delete(field.id);
                             return next;
                           });
                         }}
@@ -603,13 +699,84 @@ function RegistrationFormContent({
                         ? "tel"
                         : "off"
                   }
+                  className={
+                    isComplete
+                      ? "border-success focus-visible:border-success"
+                      : undefined
+                  }
                   id={fieldId}
-                  maxLength={field.type === "phone" ? 32 : 200}
+                  inputMode={
+                    field.type === "phone"
+                      ? field.phoneDigitsOnly
+                        ? "numeric"
+                        : "tel"
+                      : field.type === "number"
+                        ? "numeric"
+                        : undefined
+                  }
+                  maxLength={
+                    field.type === "phone"
+                      ? field.phoneDigitsOnly
+                        ? philippinesPhoneNumberLength
+                        : 32
+                      : field.type === "number"
+                        ? 20
+                        : 200
+                  }
                   name={field.id}
+                  pattern={
+                    field.type === "phone"
+                      ? field.phoneDigitsOnly
+                        ? `[0-9]{${philippinesPhoneNumberLength}}`
+                        : "(?=(?:\\D*\\d){5})[+]?[0-9\\s\\x28\\x29.\\-]{5,32}"
+                      : field.type === "number"
+                        ? "[0-9]{1,20}"
+                        : undefined
+                  }
                   required={field.required}
+                  placeholder={
+                    field.type === "phone" ? "e.g. 0912345678" : undefined
+                  }
+                  onBeforeInput={
+                    field.type === "phone" && field.phoneDigitsOnly
+                      ? (event) => {
+                          const inputEvent =
+                            event.nativeEvent as InputEvent;
+                          if (
+                            inputEvent.data &&
+                            /\D/.test(inputEvent.data)
+                          ) {
+                            event.preventDefault();
+                          }
+                        }
+                      : undefined
+                  }
+                  onPaste={
+                    field.type === "phone" && field.phoneDigitsOnly
+                      ? (event) => {
+                          if (/\D/.test(event.clipboardData.getData("text"))) {
+                            event.preventDefault();
+                          }
+                        }
+                      : undefined
+                  }
+                  onChange={
+                    field.type === "phone" && field.phoneDigitsOnly
+                      ? (event) => {
+                          event.currentTarget.value = event.currentTarget.value
+                            .replace(/\D/g, "")
+                            .slice(0, philippinesPhoneNumberLength);
+                          refreshCompletedFields(
+                            event.currentTarget.form as HTMLFormElement,
+                          );
+                        }
+                      : undefined
+                  }
                   type={
                     field.type === "email"
                       ? "email"
+                      : field.type === "phone"
+                        ? "tel"
                       : field.type === "date" || field.type === "time"
                         ? field.type
                         : "text"
@@ -619,6 +786,19 @@ function RegistrationFormContent({
               {field.type === "email" && (
                 <FieldDescription>
                   Enter an email address where the church can reach you.
+                </FieldDescription>
+              )}
+              {field.type === "phone" && (
+                <FieldDescription>
+                  {field.phoneDigitsOnly
+                    ? `Enter exactly ${philippinesPhoneNumberLength} digits, for example 0912345678.`
+                    : "Enter a phone number with at least five digits, for example 0912345678. Spaces, parentheses, hyphens, and a leading plus sign are allowed."}
+                </FieldDescription>
+              )}
+              {field.type === "number" && (
+                <FieldDescription>
+                  Enter digits only; decimals and other characters are not
+                  accepted.
                 </FieldDescription>
               )}
             </Field>

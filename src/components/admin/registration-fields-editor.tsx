@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  philippinesPhoneNumberLength,
   type RegistrationField,
 } from "@/lib/registration";
 
@@ -110,6 +111,7 @@ export function RegistrationFieldsEditor({
                   label: "New question",
                   type: "short_text",
                   required: false,
+                  phoneDigitsOnly: false,
                 },
               ])
             }
@@ -186,6 +188,8 @@ export function RegistrationFieldsEditor({
                       ].some((choice) => choice === type);
                       updateField(field.id, {
                         type,
+                        phoneDigitsOnly:
+                          type === "phone" ? field.phoneDigitsOnly : false,
                         options:
                           choiceType
                             ? field.options?.length
@@ -205,6 +209,9 @@ export function RegistrationFieldsEditor({
                       <option value="phone">Phone number</option>
                       <option value="date">Date</option>
                       <option value="time">Time</option>
+                    </optgroup>
+                    <optgroup label="Numbers only">
+                      <option value="number">Whole number (digits only)</option>
                     </optgroup>
                     <optgroup label="Selection Elements">
                       <option value="multiple_choice">Multiple choice</option>
@@ -246,6 +253,38 @@ export function RegistrationFieldsEditor({
                   <p className="text-sm text-muted-foreground sm:col-span-2">
                     One PDF, JPG, or PNG file, up to 5 MB. Files are private
                     and available only to administrators.
+                  </p>
+                )}
+                {field.type === "phone" && (
+                  <Field
+                    className="flex-row items-start gap-3 sm:col-span-2"
+                    orientation="horizontal"
+                  >
+                    <input
+                      checked={field.phoneDigitsOnly}
+                      className="mt-1 size-4 accent-primary"
+                      id={`${fieldPrefix}-phone-digits-only`}
+                      onChange={(event) =>
+                        updateField(field.id, {
+                          phoneDigitsOnly: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    <FieldLabel htmlFor={`${fieldPrefix}-phone-digits-only`}>
+                      Accept digits only
+                    </FieldLabel>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, participants enter exactly{" "}
+                      {philippinesPhoneNumberLength} digits, such as
+                      0912345678.
+                    </p>
+                  </Field>
+                )}
+                {field.type === "number" && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">
+                    Participants can enter digits only (whole numbers, up to 20
+                    digits).
                   </p>
                 )}
 
