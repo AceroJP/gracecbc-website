@@ -3,12 +3,25 @@ export const announcementPdfMaxBytes = 20 * 1024 * 1024;
 export const announcementImageMaxBytes = 5 * 1024 * 1024;
 export const announcementMaxImages = 20;
 export const announcementPdfMimeType = "application/pdf";
+export const announcementMaxCategories = 10;
+
+export const announcementCategoryOptions = [
+  { value: "sunday_worship", label: "Sunday Worship" },
+  { value: "prayer_meeting", label: "Prayer Meeting" },
+] as const;
 
 export const announcementImageTypes = {
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],
   "image/webp": [".webp"],
 } as const;
+
+export function getAnnouncementCategoryLabel(category: string) {
+  return (
+    announcementCategoryOptions.find((option) => option.value === category)
+      ?.label ?? category
+  );
+}
 
 export function getAnnouncementFileExtension(
   name: string,

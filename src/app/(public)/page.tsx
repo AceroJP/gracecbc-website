@@ -8,7 +8,11 @@ import {
   PanelsTopLeft,
 } from "lucide-react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
-import { formatAnnouncementDate, announcementBucket } from "@/lib/announcements";
+import {
+  announcementBucket,
+  formatAnnouncementDate,
+  getAnnouncementCategoryLabel,
+} from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
@@ -85,8 +89,7 @@ export default async function Home() {
         "id, title, body, pdf_path, pdf_name, slide_paths, slide_names, categories, background_path, created_at",
       )
       .is("archived_at", null)
-      .order("created_at", { ascending: false })
-      .limit(6),
+      .order("created_at", { ascending: false }),
   ]);
 
   if (eventsError) {
@@ -235,9 +238,7 @@ export default async function Home() {
                           }
                           key={category}
                         >
-                          {category === "sunday_worship"
-                            ? "Sunday Worship"
-                            : "Prayer Meeting"}
+                          {getAnnouncementCategoryLabel(category)}
                         </span>
                       ))}
                     </div>

@@ -39,10 +39,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  announcementCategoryOptions,
   announcementBucket,
   announcementImageMaxBytes,
+  announcementMaxCategories,
   announcementMaxImages,
   announcementPdfMaxBytes,
+  getAnnouncementCategoryLabel,
   getAnnouncementFileExtension,
 } from "@/lib/announcements";
 import {
@@ -73,10 +76,8 @@ type PresentationUpload =
       files: { path: string; name: string }[];
     };
 
-type AnnouncementCategory = "sunday_worship" | "prayer_meeting";
-
 type AnnouncementFormChanges = {
-    categories: AnnouncementCategory[];
+  categories: string[];
   pdfFile: File | null;
   slideFiles: File[];
   removedSlidePaths: string[];
@@ -99,18 +100,34 @@ function AnnouncementForm({
   ) => void;
 }) {
   const prefix = useId();
-  const [categories, setCategories] = useState<AnnouncementCategory[]>(
-    announcement?.categories.filter(
-      (category): category is AnnouncementCategory =>
-        category === "sunday_worship" || category === "prayer_meeting",
-    ) ?? [],
+  const [categories, setCategories] = useState<string[]>(
+    announcement?.categories ?? [],
   );
+  const [newCategory, setNewCategory] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [slideFiles, setSlideFiles] = useState<File[]>([]);
   const [removedSlidePaths, setRemovedSlidePaths] = useState<string[]>([]);
   const [removePdf, setRemovePdf] = useState(false);
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
   const [removeBackground, setRemoveBackground] = useState(false);
+
+  function addCategory() {
+    const category = newCategory.trim();
+    if (
+      !category ||
+      categories.length >= announcementMaxCategories ||
+      categories.some(
+        (current) =>
+          getAnnouncementCategoryLabel(current).toLocaleLowerCase() ===
+          category.toLocaleLowerCase(),
+      )
+    ) {
+      return;
+    }
+
+    setCategories((current) => [...current, category]);
+    setNewCategory("");
+  }
 
   return (
     <form
@@ -152,46 +169,109 @@ function AnnouncementForm({
           />
         </Field>
         <FieldSet>
-          <FieldLegend variant="label">Show in these announcements</FieldLegend>
+          <FieldLegend variant="label">Announcement labels</FieldLegend>
           <FieldGroup className="grid gap-3 sm:grid-cols-2">
-            <Field orientation="horizontal">
-              <Input
-                checked={categories.includes("sunday_worship")}
-                id={`${prefix}-sunday-worship`}
-                onChange={(event) =>
-                  setCategories((current) =>
-                    event.target.checked
-                      ? [...current, "sunday_worship"]
-                      : current.filter((category) => category !== "sunday_worship"),
-                  )
-                }
-                type="checkbox"
-              />
-              <FieldLabel htmlFor={`${prefix}-sunday-worship`}>
-                Sunday Worship
-              </FieldLabel>
-            </Field>
-            <Field orientation="horizontal">
-              <Input
-                checked={categories.includes("prayer_meeting")}
-                id={`${prefix}-prayer-meeting`}
-                onChange={(event) =>
-                  setCategories((current) =>
-                    event.target.checked
-                      ? [...current, "prayer_meeting"]
-                      : current.filter((category) => category !== "prayer_meeting"),
-                  )
-                }
-                type="checkbox"
-              />
-              <FieldLabel htmlFor={`${prefix}-prayer-meeting`}>
-                Prayer Meeting
-              </FieldLabel>
-            </Field>
+            {announcementCategoryOptions.map((option) => (
+              <Field
+                className="items-center rounded-md border border-border p-3"
+                key={option.value}
+                orientation="horizontal"
+              >
+                <input
+                  checked={categories.includes(option.value)}
+                  className="size-4 shrink-0 accent-brand"
+                  disabled={
+                    categories.length >= announcementMaxCategories &&
+                    !categories.includes(option.value)
+                  }
+                  id={`${prefix}-${option.value}`}
+                  onChange={(event) =>
+                    setCategories((current) =>
+                      event.target.checked
+                        ? [...current, option.value]
+                        : current.filter((category) => category !== option.value),
+                    )
+                  }
+                  type="checkbox"
+                />
+                <FieldLabel htmlFor={`${prefix}-${option.value}`}>
+                  {option.label}
+                </FieldLabel>
+              </Field>
+            ))}
           </FieldGroup>
           <FieldDescription>
-            Select both to show the announcement under both categories.
+            Select one or both built-in labels, or add your own. Each announcement
+            appears as one card on the public page.
           </FieldDescription>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              aria-label="Custom announcement label"
+              maxLength={50}
+              onChange={(event) => setNewCategory(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addCategory();
+                }
+              }}
+              placeholder="Add a label, e.g. Youth Fellowship"
+              value={newCategory}
+            />
+            <Button
+              disabled={
+                !newCategory.trim() ||
+                categories.length >= announcementMaxCategories ||
+                categories.some(
+                  (category) =>
+                    getAnnouncementCategoryLabel(category).toLocaleLowerCase() ===
+                    newCategory.trim().toLocaleLowerCase(),
+                )
+              }
+              onClick={addCategory}
+              type="button"
+              variant="outline"
+            >
+              Add label
+            </Button>
+          </div>
+          {categories.filter(
+            (category) =>
+              !announcementCategoryOptions.some(
+                (option) => option.value === category,
+              ),
+          ).length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {categories
+                .filter(
+                  (category) =>
+                    !announcementCategoryOptions.some(
+                      (option) => option.value === category,
+                    ),
+                )
+                .map((category) => (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-brand/8 py-1 pr-1 pl-3 text-sm text-brand"
+                    key={category}
+                  >
+                    {category}
+                    <Button
+                      aria-label={`Remove ${category} label`}
+                      onClick={() =>
+                        setCategories((current) =>
+                          current.filter((item) => item !== category),
+                        )
+                      }
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <X />
+                    </Button>
+                  </span>
+                ))}
+            </div>
+          )}
         </FieldSet>
         <Field>
           <FieldLabel htmlFor={`${prefix}-pdf`}>
@@ -820,11 +900,7 @@ function AnnouncementList({
                     : "No presentation attached"}
                 {announcement.categories.length > 0
                   ? ` · ${announcement.categories
-                      .map((category) =>
-                        category === "sunday_worship"
-                          ? "Sunday Worship"
-                          : "Prayer Meeting",
-                      )
+                      .map(getAnnouncementCategoryLabel)
                       .join(", ")}`
                   : ""}
                 {announcement.background_name ? " · Card background set" : ""}

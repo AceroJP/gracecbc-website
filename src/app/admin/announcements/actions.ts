@@ -6,10 +6,12 @@ import { z } from "zod";
 import { requireAdminUser } from "@/lib/auth/server";
 import {
   announcementBucket,
+  announcementMaxCategories,
   announcementImageMaxBytes,
   announcementMaxImages,
   announcementPdfMaxBytes,
   getAnnouncementFileExtension,
+  getAnnouncementCategoryLabel,
 } from "@/lib/announcements";
 import { createClient } from "@/lib/supabase/server";
 
@@ -38,7 +40,18 @@ const presentationSchema = z.discriminatedUnion("type", [
 const contentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   body: z.string().trim().max(3000),
-  categories: z.array(z.enum(["sunday_worship", "prayer_meeting"])).max(2),
+  categories: z
+    .array(z.string().trim().min(1).max(50))
+    .max(announcementMaxCategories)
+    .refine(
+      (categories) =>
+        new Set(
+          categories.map((category) =>
+            getAnnouncementCategoryLabel(category).toLocaleLowerCase(),
+          ),
+        ).size === categories.length,
+      "Announcement labels must be unique.",
+    ),
   presentation: presentationSchema.nullable().optional(),
   background: fileReferenceSchema.nullable().optional(),
 });
