@@ -14,6 +14,7 @@ import { formatEventDateRange } from "@/lib/events";
 import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database.types";
+import { RegistrationActions } from "./registration-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -206,6 +207,14 @@ export default async function EventRegistrationsPage({
                       </div>
                     ))}
                   </dl>
+                  <div className="mt-5 border-t border-border pt-4">
+                    <RegistrationActions
+                      answers={answers}
+                      eventId={event.id}
+                      fields={snapshot}
+                      registrationId={registration.id}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             );

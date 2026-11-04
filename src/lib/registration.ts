@@ -53,6 +53,78 @@ export const registrationFieldsSchema = z
 
 export type RegistrationField = z.infer<typeof registrationFieldSchema>;
 
+const emailSchema = z.email();
+const phoneSchema = /^[+]?[0-9\s().-]{5,32}$/;
+
+export function validateRegistrationAnswers(
+  formData: FormData,
+  fields: RegistrationField[],
+): Record<string, string | boolean> | null {
+  const answers: Record<string, string | boolean> = {};
+
+  for (const field of fields) {
+    const values = formData.getAll(field.id);
+
+    if (field.type === "checkbox") {
+      if (values.length > 1 || (values.length === 1 && values[0] !== "true")) {
+        return null;
+      }
+
+      const checked = values.length === 1;
+      if (field.required && !checked) {
+        return null;
+      }
+
+      answers[field.id] = checked;
+      continue;
+    }
+
+    if (
+      values.length > 1 ||
+      (values.length === 1 && typeof values[0] !== "string")
+    ) {
+      return null;
+    }
+
+    const value = typeof values[0] === "string" ? values[0].trim() : "";
+    const maxLength =
+      field.type === "long_text"
+        ? 2000
+        : field.type === "email"
+          ? 254
+          : field.type === "phone"
+            ? 32
+            : field.type === "select"
+              ? 80
+              : 200;
+
+    if ((field.required && !value) || value.length > maxLength) {
+      return null;
+    }
+
+    if (
+      field.type === "email" &&
+      value &&
+      !emailSchema.safeParse(value).success
+    ) {
+      return null;
+    }
+
+    if (field.type === "phone" && value && !phoneSchema.test(value)) {
+      return null;
+    }
+
+    if (field.type === "select" && value && !field.options?.includes(value)) {
+      return null;
+    }
+
+    answers[field.id] =
+      field.type === "email" ? value.toLowerCase() : value;
+  }
+
+  return answers;
+}
+
 export function parseRegistrationFields(value: unknown): RegistrationField[] {
   const parsed = registrationFieldsSchema.safeParse(value);
 
