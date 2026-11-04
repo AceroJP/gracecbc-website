@@ -287,10 +287,7 @@ export default async function EventRegistrationsPage({
                       answers={answers}
                       eventId={event.id}
                       fields={snapshot}
-<<<<<<< HEAD
-=======
                       fileUrls={registrationFileUrls}
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                       registrationId={registration.id}
                     />
                   </div>

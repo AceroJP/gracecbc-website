@@ -10,13 +10,9 @@ import { getTurnstileSecret } from "@/lib/env.server";
 import {
   hasRegistrationUploadSignature,
   parseRegistrationFields,
-<<<<<<< HEAD
-  validateRegistrationAnswers,
-=======
   registrationFileBucket,
   validateRegistrationAnswers,
   type RegistrationFileAnswer,
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   type RegistrationField,
 } from "@/lib/registration";
 import { verifyRegistrationUploadTicket } from "@/lib/registration-upload.server";

@@ -1,10 +1,6 @@
 "use client";
 
-<<<<<<< HEAD
-import { useId, useState } from "react";
-=======
 import { type FormEvent, useId, useRef, useState } from "react";
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -22,14 +18,6 @@ import {
   Field,
   FieldGroup,
   FieldLabel,
-<<<<<<< HEAD
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import type { RegistrationField } from "@/lib/registration";
-import type { Json } from "@/types/database.types";
-import {
-=======
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
@@ -43,19 +31,15 @@ import {
 import type { Json } from "@/types/database.types";
 import {
   beginAdminRegistrationUploadAction,
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   deleteRegistrationAction,
   updateRegistrationAction,
   type RegistrationManagementState,
 } from "./actions";
-<<<<<<< HEAD
-=======
 import {
   getRegistrationUploadExtension,
   isRegistrationUploadContentType,
 } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/client";
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
 const initialState: RegistrationManagementState = { status: "idle" };
 
@@ -63,41 +47,29 @@ function answerString(value: Json | undefined) {
   return typeof value === "string" ? value : "";
 }
 
-<<<<<<< HEAD
-=======
 function answerStrings(value: Json | undefined) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
 }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 export function RegistrationActions({
   eventId,
   registrationId,
   fields,
   answers,
-<<<<<<< HEAD
-=======
   fileUrls,
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }: {
   eventId: string;
   registrationId: string;
   fields: RegistrationField[];
   answers: Record<string, Json | undefined>;
-<<<<<<< HEAD
-=======
   fileUrls: Record<string, string>;
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
-<<<<<<< HEAD
-  const formId = useId();
-=======
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<
     Record<
@@ -107,7 +79,6 @@ export function RegistrationActions({
   >({});
   const formId = useId();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
   async function handleUpdate(formData: FormData) {
     setSaving(true);
@@ -149,8 +120,6 @@ export function RegistrationActions({
     }
   }
 
-<<<<<<< HEAD
-=======
   async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     const pendingFiles = fields.flatMap((field) => {
       if (field.type !== "file_upload") {
@@ -280,7 +249,6 @@ export function RegistrationActions({
     }
   }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   async function handleDelete() {
     const confirmation = await Swal.fire({
       icon: "warning",
@@ -345,15 +313,8 @@ export function RegistrationActions({
           </DialogHeader>
           <form
             className="flex flex-col gap-5"
-<<<<<<< HEAD
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleUpdate(new FormData(event.currentTarget));
-            }}
-=======
             encType="multipart/form-data"
             onSubmit={(event) => void handleFormSubmit(event)}
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
           >
             <FieldGroup>
               {fields.map((field) => {
@@ -387,8 +348,6 @@ export function RegistrationActions({
                   );
                 }
 
-<<<<<<< HEAD
-=======
                 if (
                   field.type === "checkboxes" ||
                   field.type === "multiple_choice"
@@ -434,7 +393,6 @@ export function RegistrationActions({
                   );
                 }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                 return (
                   <Field key={field.id}>
                     <FieldLabel htmlFor={fieldId}>
@@ -471,8 +429,6 @@ export function RegistrationActions({
                           </option>
                         ))}
                       </select>
-<<<<<<< HEAD
-=======
                     ) : field.type === "file_upload" ? (
                       <div className="flex flex-col gap-3">
                         {fileUrls[field.id] && (
@@ -553,7 +509,6 @@ export function RegistrationActions({
                           </Field>
                         )}
                       </div>
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                     ) : (
                       <Input
                         autoComplete={
@@ -568,9 +523,6 @@ export function RegistrationActions({
                         maxLength={field.type === "phone" ? 32 : 254}
                         name={field.id}
                         required={field.required}
-<<<<<<< HEAD
-                        type={field.type === "email" ? "email" : "text"}
-=======
                         type={
                           field.type === "email"
                             ? "email"
@@ -578,7 +530,6 @@ export function RegistrationActions({
                               ? field.type
                               : "text"
                         }
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                       />
                     )}
                   </Field>
@@ -593,17 +544,12 @@ export function RegistrationActions({
               >
                 Cancel
               </Button>
-<<<<<<< HEAD
-              <Button disabled={saving} type="submit">
-                {saving ? "Saving…" : "Save changes"}
-=======
               <Button disabled={saving || uploadingFiles} type="submit">
                 {uploadingFiles
                   ? "Uploading file…"
                   : saving
                     ? "Saving…"
                     : "Save changes"}
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
               </Button>
             </DialogFooter>
           </form>

@@ -1,16 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-<<<<<<< HEAD
-import { z } from "zod";
-import { requireAdminUser } from "@/lib/auth/server";
-import {
-  parseRegistrationFields,
-  validateRegistrationAnswers,
-  type RegistrationField,
-} from "@/lib/registration";
-import { createClient } from "@/lib/supabase/server";
-=======
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createPrivilegedClient } from "@/lib/supabase/admin";
@@ -32,7 +22,6 @@ import {
   createRegistrationUploadTicket,
   verifyRegistrationUploadTicket,
 } from "@/lib/registration-upload.server";
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
 export type RegistrationManagementState = {
   status: "idle" | "success" | "error";
@@ -40,8 +29,6 @@ export type RegistrationManagementState = {
 };
 
 const uuidSchema = z.uuid();
-<<<<<<< HEAD
-=======
 const adminUploadRequestSchema = z.object({
   name: z.string().min(1).max(500),
   size: z.number().int().positive(),
@@ -59,7 +46,6 @@ type AdminRegistrationUploadResult =
         contentType: "application/pdf" | "image/jpeg" | "image/png";
       };
     };
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
 function invalidRequest(): RegistrationManagementState {
   return {
@@ -79,8 +65,6 @@ function registrationsPath(eventId: string) {
   return `/admin/events/${eventId}/registrations`;
 }
 
-<<<<<<< HEAD
-=======
 export async function beginAdminRegistrationUploadAction(
   eventId: string,
   registrationId: string,
@@ -217,7 +201,6 @@ async function removeStoredFiles(paths: string[]) {
   }
 }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 export async function updateRegistrationAction(
   eventId: string,
   registrationId: string,
@@ -236,11 +219,7 @@ export async function updateRegistrationAction(
   const supabase = await createClient();
   const { data: registration, error: loadError } = await supabase
     .from("event_registrations")
-<<<<<<< HEAD
-    .select("form_snapshot")
-=======
     .select("form_snapshot, answers")
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
     .eq("id", registrationId)
     .eq("event_id", eventId)
     .maybeSingle();
@@ -270,8 +249,6 @@ export async function updateRegistrationAction(
     };
   }
 
-<<<<<<< HEAD
-=======
   const existingAnswers = getAnswerRecord(registration.answers);
   const pendingUploads: {
     field: RegistrationField;
@@ -450,7 +427,6 @@ export async function updateRegistrationAction(
     }
   }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   const { data, error } = await supabase
     .from("event_registrations")
     .update({ answers })
@@ -461,21 +437,11 @@ export async function updateRegistrationAction(
 
   if (error) {
     console.error("Unable to update event registration.", error);
-<<<<<<< HEAD
-=======
     await removeStoredFiles(newFilePaths);
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
     return errorState();
   }
 
   if (!data) {
-<<<<<<< HEAD
-    return invalidRequest();
-  }
-
-  revalidatePath(registrationsPath(eventId));
-  return { status: "success", message: "Registration updated." };
-=======
     await removeStoredFiles(newFilePaths);
     return invalidRequest();
   }
@@ -489,7 +455,6 @@ export async function updateRegistrationAction(
       ? "Registration updated."
       : "Registration updated, but an old attachment could not be removed. Check the server logs.",
   };
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }
 
 export async function deleteRegistrationAction(
@@ -506,8 +471,6 @@ export async function deleteRegistrationAction(
   }
 
   const supabase = await createClient();
-<<<<<<< HEAD
-=======
   const { data: registration, error: loadError } = await supabase
     .from("event_registrations")
     .select("answers")
@@ -533,7 +496,6 @@ export async function deleteRegistrationAction(
         file !== null && file.path.startsWith(`${eventId}/`),
     )
     .map((file) => file.path);
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   const { data, error } = await supabase
     .from("event_registrations")
     .delete()
@@ -554,10 +516,6 @@ export async function deleteRegistrationAction(
     return invalidRequest();
   }
 
-<<<<<<< HEAD
-  revalidatePath(registrationsPath(eventId));
-  return { status: "success", message: "Registration deleted." };
-=======
   const filesRemoved = await removeStoredFiles(filePaths);
   revalidatePath(registrationsPath(eventId));
   return {
@@ -566,5 +524,4 @@ export async function deleteRegistrationAction(
       ? "Registration deleted."
       : "Registration deleted, but an attached file could not be removed. Check the server logs.",
   };
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }

@@ -81,10 +81,6 @@ export const registrationFieldsSchema = z
 
 export type RegistrationField = z.infer<typeof registrationFieldSchema>;
 
-<<<<<<< HEAD
-const emailSchema = z.email();
-const phoneSchema = /^[+]?[0-9\s().-]{5,32}$/;
-=======
 export type RegistrationFileAnswer = {
   path: string;
   name: string;
@@ -188,18 +184,12 @@ export function safeRegistrationFilename(name: string) {
       .slice(0, 180) || "Uploaded file"
   );
 }
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
 export function validateRegistrationAnswers(
   formData: FormData,
   fields: RegistrationField[],
-<<<<<<< HEAD
-): Record<string, string | boolean> | null {
-  const answers: Record<string, string | boolean> = {};
-=======
 ): Record<string, RegistrationAnswer> | null {
   const answers: Record<string, RegistrationAnswer> = {};
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
   for (const field of fields) {
     const values = formData.getAll(field.id);
@@ -218,8 +208,6 @@ export function validateRegistrationAnswers(
       continue;
     }
 
-<<<<<<< HEAD
-=======
     if (field.type === "checkboxes") {
       if (values.some((value) => typeof value !== "string")) {
         return null;
@@ -243,7 +231,6 @@ export function validateRegistrationAnswers(
       continue;
     }
 
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
     if (
       values.length > 1 ||
       (values.length === 1 && typeof values[0] !== "string")
@@ -261,11 +248,8 @@ export function validateRegistrationAnswers(
             ? 32
             : field.type === "select"
               ? 80
-<<<<<<< HEAD
-=======
               : field.type === "date" || field.type === "time"
                 ? 16
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
               : 200;
 
     if ((field.required && !value) || value.length > maxLength) {
@@ -284,9 +268,6 @@ export function validateRegistrationAnswers(
       return null;
     }
 
-<<<<<<< HEAD
-    if (field.type === "select" && value && !field.options?.includes(value)) {
-=======
     if (
       ["select", "multiple_choice"].includes(field.type) &&
       value &&
@@ -300,7 +281,6 @@ export function validateRegistrationAnswers(
     }
 
     if (field.type === "time" && value && !timeSchema.test(value)) {
->>>>>>> 703a9cd (Add private storage bucket for registration uploads)
       return null;
     }
 
