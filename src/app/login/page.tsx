@@ -1,9 +1,9 @@
 import { Church, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { signOutAction } from "@/app/auth/actions";
 import { LoginForm } from "@/app/auth/login/login-form";
-import { Button } from "@/components/ui/button";
+import { AuthStatusAlert } from "@/components/auth/auth-status-alert";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 import { getCurrentUser } from "@/lib/auth/server";
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -30,16 +30,29 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   const unauthorized = params.error === "unauthorized";
+  const signOutFailed = params.error === "sign-out";
   const unauthorizedMessage = unauthorized
     ? "This account does not have administrator access. Sign in with an authorized account."
-    : null;
+    : signOutFailed
+      ? "We couldn’t sign you out. Please try again."
+      : null;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-warm px-4 py-12">
       <SweetAlertError
         message={unauthorizedMessage}
-        title="Administrator access required"
+        title={
+          signOutFailed
+            ? "Unable to sign out"
+            : "Administrator access required"
+        }
       />
+      {params.notice === "signed-out" && (
+        <AuthStatusAlert
+          message="You have been signed out of the admin workspace."
+          title="Signed out"
+        />
+      )}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -top-32 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-brand/5 blur-3xl"
@@ -70,11 +83,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <p className="break-all text-center text-sm text-muted-foreground">
               Signed in as {user.email}
             </p>
-            <form action={signOutAction}>
-              <Button className="w-full" type="submit" variant="outline">
-                Sign out and use another account
-              </Button>
-            </form>
+            <SignOutButton fullWidth className="w-full" />
           </div>
         ) : (
           <div className="mt-8">

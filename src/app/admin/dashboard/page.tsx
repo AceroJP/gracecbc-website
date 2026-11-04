@@ -4,7 +4,11 @@ import {
   Images,
   PanelsTopLeft,
 } from "lucide-react";
+import { AuthStatusAlert } from "@/components/auth/auth-status-alert";
 
+type DashboardPageProps = {
+  searchParams: Promise<{ notice?: string }>;
+};
 const workspaceSections = [
   {
     title: "Landing page",
@@ -32,9 +36,19 @@ const workspaceSections = [
   },
 ];
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: DashboardPageProps) {
+  const params = await searchParams;
+
   return (
     <>
+      {params.notice === "signed-in" && (
+        <AuthStatusAlert
+          message="You are signed in to the administrator workspace."
+          title="Welcome back"
+        />
+      )}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-medium text-muted-foreground">

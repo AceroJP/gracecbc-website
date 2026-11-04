@@ -8,7 +8,6 @@ import {
   Church,
   FileImage,
   LayoutDashboard,
-  LogOut,
   Megaphone,
   Menu,
   MonitorPlay,
@@ -20,8 +19,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { signOutAction } from "@/app/auth/actions";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -196,18 +194,13 @@ export function AdminShell({
                 <span className="text-muted-foreground">Administrator</span>
               </span>
             </div>
-            <form action={signOutAction}>
-              <Button
-                aria-label="Sign out"
-                className="size-9"
-                size="icon"
-                title="Sign out"
-                type="submit"
-                variant="ghost"
-              >
-                <LogOut aria-hidden="true" />
-              </Button>
-            </form>
+            <SignOutButton
+              ariaLabel="Sign out"
+              className="size-9"
+              size="icon"
+              showLabel={false}
+              variant="ghost"
+            />
           </div>
         </header>
 

@@ -26,25 +26,35 @@ export async function signInAction(
     return { error: "Enter a valid email address and password." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
-  if (error) {
+    if (error) {
+      return {
+        error: "Sign-in failed. Check your email and password, then try again.",
+      };
+    }
+  } catch (error) {
+    console.error("Sign-in request failed.", error);
     return {
-      error: "Sign-in failed. Check your email and password, then try again.",
+      error: "We couldn’t complete sign-in. Please try again.",
     };
   }
 
-  redirect("/admin/dashboard");
+  redirect("/admin/dashboard?notice=signed-in");
 }
 
-export async function signOutAction() {
+export async function signOutAction(): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signOut();
 
   if (error) {
-    throw error;
+    console.error("Unable to sign out.", error);
+    return {
+      error: "We couldn’t sign you out. Please try again.",
+    };
   }
 
-  redirect("/login");
+  return {};
 }
