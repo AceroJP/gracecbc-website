@@ -1,6 +1,6 @@
 "use server";
 
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -8,10 +8,18 @@ import { createPrivilegedClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getTurnstileSecret } from "@/lib/env.server";
 import {
+  hasRegistrationUploadSignature,
   parseRegistrationFields,
+<<<<<<< HEAD
   validateRegistrationAnswers,
+=======
+  registrationFileBucket,
+  validateRegistrationAnswers,
+  type RegistrationFileAnswer,
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   type RegistrationField,
 } from "@/lib/registration";
+import { verifyRegistrationUploadTicket } from "@/lib/registration-upload.server";
 import { verifyRegistrationChallenge } from "@/lib/turnstile";
 
 export type RegistrationSubmissionState = {
@@ -42,6 +50,25 @@ function temporaryError(): RegistrationSubmissionState {
     status: "error",
     message: "We couldn’t submit your registration right now. Please try again.",
   };
+}
+
+async function removeUploadedFiles(paths: string[]) {
+  if (paths.length === 0) {
+    return;
+  }
+
+  try {
+    const client = createPrivilegedClient();
+    const { error } = await client.storage
+      .from(registrationFileBucket)
+      .remove(paths);
+
+    if (error) {
+      console.error("Unable to clean up event registration uploads.", error);
+    }
+  } catch (error) {
+    console.error("Unable to clean up event registration uploads.", error);
+  }
 }
 
 export async function submitRegistrationAction(
@@ -106,40 +133,6 @@ export async function submitRegistrationAction(
     };
   }
 
-  const challengeToken = formData.get("cf-turnstile-response");
-
-  if (
-    typeof challengeToken !== "string" ||
-    challengeToken.length === 0 ||
-    challengeToken.length > 2048
-  ) {
-    return {
-      status: "error",
-      message: "Complete the security check before submitting.",
-    };
-  }
-
-  let challengeValid: boolean;
-
-  try {
-    const expectedHostname = new URL(`https://${hostname}`).hostname;
-    challengeValid = await verifyRegistrationChallenge(
-      challengeToken,
-      expectedHostname,
-      clientIp,
-    );
-  } catch (error) {
-    console.error("Unable to verify the event registration challenge.", error);
-    return temporaryError();
-  }
-
-  if (!challengeValid) {
-    return {
-      status: "error",
-      message: "The security check expired or could not be verified. Please try again.",
-    };
-  }
-
   const supabase = await createClient();
   const { data: event, error: eventError } = await supabase
     .from("events")
@@ -186,6 +179,158 @@ export async function submitRegistrationAction(
     };
   }
 
+  const challengeToken = formData.get("cf-turnstile-response");
+  const uploadTickets: {
+    field: RegistrationField;
+    ticket: NonNullable<
+      ReturnType<typeof verifyRegistrationUploadTicket>
+    >;
+  }[] = [];
+
+  for (const field of fields) {
+    if (field.type !== "file_upload") {
+      continue;
+    }
+
+    const rawTicket = formData.get(`${field.id}__upload_ticket`);
+    if (typeof rawTicket !== "string" || rawTicket.length === 0) {
+      answers[field.id] = null;
+      if (field.required) {
+        await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+        return {
+          status: "error",
+          message: `Please attach a file for “${field.label}”.`,
+        };
+      }
+      continue;
+    }
+    if (rawTicket.length > 4096) {
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return {
+        status: "error",
+        message: "A file upload expired. Please select the file and upload it again.",
+      };
+    }
+
+    let ticket;
+    try {
+      ticket = verifyRegistrationUploadTicket(
+        rawTicket,
+        turnstileSecret,
+        eventId,
+        field.id,
+      );
+    } catch (error) {
+      console.error("Unable to validate registration upload ticket.", error);
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return temporaryError();
+    }
+    if (!ticket) {
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return {
+        status: "error",
+        message: "A file upload expired. Please select the file and upload it again.",
+      };
+    }
+
+    uploadTickets.push({ field, ticket });
+  }
+
+  if (uploadTickets.length === 0) {
+    if (
+      typeof challengeToken !== "string" ||
+      challengeToken.length === 0 ||
+      challengeToken.length > 2048
+    ) {
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return {
+        status: "error",
+        message: "Complete the security check before submitting.",
+      };
+    }
+
+    let challengeValid: boolean;
+    try {
+      challengeValid = await verifyRegistrationChallenge(
+        challengeToken,
+        new URL(`https://${hostname}`).hostname,
+        clientIp,
+      );
+    } catch (error) {
+      console.error("Unable to verify the event registration challenge.", error);
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return temporaryError();
+    }
+    if (!challengeValid) {
+      await removeUploadedFiles(uploadTickets.map(({ ticket }) => ticket.path));
+      return {
+        status: "error",
+        message: "The security check expired or could not be verified. Please try again.",
+      };
+    }
+  }
+
+  const pendingPaths = uploadTickets.map(({ ticket }) => ticket.path);
+  const uploadedPaths: string[] = [];
+  for (const { field, ticket } of uploadTickets) {
+    const { data: fileBlob, error: downloadError } = await privilegedClient.storage
+      .from(registrationFileBucket)
+      .download(ticket.path);
+    if (
+      downloadError ||
+      !fileBlob ||
+      fileBlob.size !== ticket.size ||
+      (fileBlob.type && fileBlob.type !== ticket.contentType)
+    ) {
+      if (downloadError) {
+        console.error("Unable to verify uploaded registration file.", downloadError);
+      }
+      await removeUploadedFiles([...pendingPaths, ...uploadedPaths]);
+      return {
+        status: "error",
+        message: "An uploaded file could not be verified. Please upload it again.",
+      };
+    }
+
+    let signatureValid: boolean;
+    try {
+      signatureValid = await hasRegistrationUploadSignature(
+        new File([fileBlob], ticket.name, { type: ticket.contentType }),
+      );
+    } catch (error) {
+      console.error("Unable to inspect uploaded registration file.", error);
+      await removeUploadedFiles([...pendingPaths, ...uploadedPaths]);
+      return temporaryError();
+    }
+    if (!signatureValid) {
+      await removeUploadedFiles([...pendingPaths, ...uploadedPaths]);
+      return {
+        status: "error",
+        message: "The uploaded file content does not match its file type.",
+      };
+    }
+
+    const extension = ticket.path.slice(ticket.path.lastIndexOf("."));
+    const path = `${eventId}/${randomUUID()}/${field.id}${extension}`;
+    const { error: copyError } = await privilegedClient.storage
+      .from(registrationFileBucket)
+      .copy(ticket.path, path);
+    if (copyError) {
+      console.error("Unable to finalize registration file.", copyError);
+      await removeUploadedFiles([...pendingPaths, ...uploadedPaths]);
+      return temporaryError();
+    }
+
+    uploadedPaths.push(path);
+    const fileAnswer: RegistrationFileAnswer = {
+      path,
+      name: ticket.name,
+      size: ticket.size,
+      contentType: ticket.contentType,
+    };
+    answers[field.id] = fileAnswer;
+  }
+
   const { data: result, error: submitError } = await privilegedClient
     .rpc("submit_event_registration", {
       p_event_id: eventId,
@@ -196,28 +341,38 @@ export async function submitRegistrationAction(
 
   if (submitError) {
     console.error("Unable to save event registration.", submitError);
+    await removeUploadedFiles([...pendingPaths, ...uploadedPaths]);
     return temporaryError();
   }
 
   switch (result.status) {
     case "submitted":
+      await removeUploadedFiles(pendingPaths);
       return { status: "success" };
     case "closed":
+      await removeUploadedFiles(uploadedPaths);
+      await removeUploadedFiles(pendingPaths);
       return {
         status: "error",
         message: "Registration for this event has closed.",
       };
     case "full":
+      await removeUploadedFiles(uploadedPaths);
+      await removeUploadedFiles(pendingPaths);
       return {
         status: "error",
         message: "This event has reached its registration capacity.",
       };
     case "form_changed":
+      await removeUploadedFiles(uploadedPaths);
+      await removeUploadedFiles(pendingPaths);
       return {
         status: "error",
         message: "The registration form changed. Refresh the page and try again.",
       };
     default:
+      await removeUploadedFiles(uploadedPaths);
+      await removeUploadedFiles(pendingPaths);
       return {
         status: "error",
         message: "Registration for this event is unavailable.",

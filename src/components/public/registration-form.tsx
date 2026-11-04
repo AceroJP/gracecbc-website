@@ -2,18 +2,23 @@
 
 import Script from "next/script";
 import {
+  type FormEvent,
   useActionState,
   useEffect,
   useId,
   useRef,
   useState,
 } from "react";
+import Swal from "sweetalert2";
+import { beginRegistrationUploadsAction } from "@/app/(public)/registration-upload-actions";
 import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +35,14 @@ import {
   submitRegistrationAction,
   type RegistrationSubmissionState,
 } from "@/app/(public)/registration-actions";
-import type { RegistrationField } from "@/lib/registration";
+import {
+  getRegistrationUploadExtension,
+  isRegistrationUploadContentType,
+  registrationUploadAccept,
+  registrationUploadMaxBytes,
+  type RegistrationField,
+} from "@/lib/registration";
+import { createClient } from "@/lib/supabase/client";
 
 declare global {
   interface Window {
@@ -200,8 +212,16 @@ function RegistrationFormContent({
   );
   const [token, setToken] = useState("");
   const [resetKey, setResetKey] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Record<
+      string,
+      { fileName: string; size: number; lastModified: number; ticket: string }
+    >
+  >({});
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const formId = useId();
   const previousState = useRef(state);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (
@@ -213,6 +233,151 @@ function RegistrationFormContent({
     }
     previousState.current = state;
   }, [state]);
+
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    const pendingFiles = fields.flatMap((field) => {
+      if (field.type !== "file_upload") {
+        return [];
+      }
+
+      const input = fileInputRefs.current[field.id];
+      const file = input?.files?.[0];
+      const uploaded = uploadedFiles[field.id];
+      if (
+        !file ||
+        (uploaded?.fileName === file.name &&
+          uploaded.size === file.size &&
+          uploaded.lastModified === file.lastModified)
+      ) {
+        return [];
+      }
+
+      return [{ fieldId: field.id, file }];
+    });
+
+    if (pendingFiles.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    if (!token) {
+      await Swal.fire({
+        icon: "error",
+        title: "Complete the security check",
+        text: "Complete the security check before uploading files.",
+        confirmButtonText: "Okay",
+      });
+      return;
+    }
+    if (
+      pendingFiles.some(
+        ({ file }) =>
+          !isRegistrationUploadContentType(file.type) ||
+          !getRegistrationUploadExtension(file),
+      )
+    ) {
+      await Swal.fire({
+        icon: "error",
+        title: "Unsupported file",
+        text: "Files must be PDF, JPG, or PNG and no larger than 5 MB.",
+        confirmButtonText: "Okay",
+      });
+      return;
+    }
+
+    setUploadingFiles(true);
+    try {
+      const response = await beginRegistrationUploadsAction({
+        eventId,
+        challengeToken: token,
+        uploads: pendingFiles.flatMap(({ fieldId, file }) =>
+          isRegistrationUploadContentType(file.type)
+            ? [
+                {
+                  fieldId,
+                  name: file.name,
+                  size: file.size,
+                  lastModified: file.lastModified,
+                  contentType: file.type,
+                },
+              ]
+            : [],
+        ),
+      });
+
+      if (response.status === "error") {
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to upload files",
+          text: response.message,
+          confirmButtonText: "Okay",
+        });
+        setToken("");
+        setResetKey((current) => current + 1);
+        return;
+      }
+
+      const supabase = createClient();
+      for (const upload of response.uploads) {
+        const selected = pendingFiles.find(
+          ({ fieldId }) => fieldId === upload.fieldId,
+        );
+        if (!selected) {
+          throw new Error("An uploaded file no longer matches the form.");
+        }
+
+        const { error } = await supabase.storage
+          .from("event-registration-files")
+          .uploadToSignedUrl(upload.path, upload.token, selected.file, {
+            cacheControl: "3600",
+            contentType: upload.contentType,
+          });
+        if (error) {
+          console.error("Unable to upload registration file to storage.", error);
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to upload files",
+            text: "We couldn’t upload your files. Please choose them again and retry.",
+            confirmButtonText: "Okay",
+          });
+          setToken("");
+          setResetKey((current) => current + 1);
+          return;
+        }
+
+        setUploadedFiles((current) => ({
+          ...current,
+          [upload.fieldId]: {
+            fileName: selected.file.name,
+            size: selected.file.size,
+            lastModified: selected.file.lastModified,
+            ticket: upload.ticket,
+          },
+        }));
+      }
+
+      setToken("");
+      setResetKey((current) => current + 1);
+      await Swal.fire({
+        icon: "success",
+        title: "Files uploaded",
+        text: "Your files are ready. Submit the registration form to finish.",
+        confirmButtonText: "Okay",
+      });
+    } catch (error) {
+      console.error("Registration file upload failed.", error);
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to upload files",
+        text: "We couldn’t upload your files. Please try again.",
+        confirmButtonText: "Okay",
+      });
+      setToken("");
+      setResetKey((current) => current + 1);
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
 
   if (state.status === "success") {
     return (
@@ -249,7 +414,12 @@ function RegistrationFormContent({
         message={state.status === "error" ? state.message : null}
         title="Registration failed"
       />
-      <form action={formAction} className="flex flex-col gap-5">
+      <form
+        action={formAction}
+        className="flex flex-col gap-5"
+        encType="multipart/form-data"
+        onSubmit={handleFormSubmit}
+      >
       {deadline && (
         <p className="text-sm text-muted-foreground">
           Registration closes on{" "}
@@ -290,6 +460,49 @@ function RegistrationFormContent({
             );
           }
 
+          if (
+            field.type === "checkboxes" ||
+            field.type === "multiple_choice"
+          ) {
+            const isCheckboxGroup = field.type === "checkboxes";
+            return (
+              <FieldSet key={field.id}>
+                <FieldLegend variant="label">
+                  {field.label}
+                  {field.required && (
+                    <span aria-hidden="true" className="text-destructive">
+                      {" "}*
+                    </span>
+                  )}
+                </FieldLegend>
+                {isCheckboxGroup && (
+                  <FieldDescription>Select all that apply.</FieldDescription>
+                )}
+                <FieldGroup>
+                  {field.options?.map((option, index) => {
+                    const optionId = `${fieldId}-${index}`;
+                    return (
+                      <Field
+                        className="flex-row items-start gap-3"
+                        key={option}
+                      >
+                        <input
+                          className="mt-1 size-4 accent-primary"
+                          id={optionId}
+                          name={field.id}
+                          required={!isCheckboxGroup && field.required}
+                          type={isCheckboxGroup ? "checkbox" : "radio"}
+                          value={option}
+                        />
+                        <FieldLabel htmlFor={optionId}>{option}</FieldLabel>
+                      </Field>
+                    );
+                  })}
+                </FieldGroup>
+              </FieldSet>
+            );
+          }
+
           return (
             <Field key={field.id}>
               <FieldLabel htmlFor={fieldId}>
@@ -325,6 +538,62 @@ function RegistrationFormContent({
                     </option>
                   ))}
                 </select>
+              ) : field.type === "file_upload" ? (
+                <>
+                  <Input
+                    accept={registrationUploadAccept}
+                    disabled={Boolean(uploadedFiles[field.id])}
+                    id={fieldId}
+                    name={field.id}
+                    onChange={() =>
+                      setUploadedFiles((current) => {
+                        const next = { ...current };
+                        delete next[field.id];
+                        return next;
+                      })
+                    }
+                    ref={(element) => {
+                      fileInputRefs.current[field.id] = element;
+                    }}
+                    required={field.required && !uploadedFiles[field.id]}
+                    type="file"
+                  />
+                  {uploadedFiles[field.id] && (
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <span className="break-all">
+                        Uploaded: {uploadedFiles[field.id].fileName}
+                      </span>
+                      <Button
+                        onClick={() => {
+                          const input = fileInputRefs.current[field.id];
+                          if (input) {
+                            input.value = "";
+                            input.disabled = false;
+                          }
+                          setUploadedFiles((current) => {
+                            const next = { ...current };
+                            delete next[field.id];
+                            return next;
+                          });
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Choose another file
+                      </Button>
+                    </div>
+                  )}
+                  <input
+                    name={`${field.id}__upload_ticket`}
+                    type="hidden"
+                    value={uploadedFiles[field.id]?.ticket ?? ""}
+                  />
+                  <FieldDescription>
+                    PDF, JPG, or PNG; maximum{" "}
+                    {registrationUploadMaxBytes / (1024 * 1024)} MB.
+                  </FieldDescription>
+                </>
               ) : (
                 <Input
                   autoComplete={
@@ -338,7 +607,13 @@ function RegistrationFormContent({
                   maxLength={field.type === "phone" ? 32 : 200}
                   name={field.id}
                   required={field.required}
-                  type={field.type === "email" ? "email" : "text"}
+                  type={
+                    field.type === "email"
+                      ? "email"
+                      : field.type === "date" || field.type === "time"
+                        ? field.type
+                        : "text"
+                  }
                 />
               )}
               {field.type === "email" && (
@@ -358,8 +633,20 @@ function RegistrationFormContent({
         siteKey={siteKey}
       />
 
-      <Button className="w-fit" disabled={!token || pending} type="submit">
-        {pending ? "Submitting registration…" : "Submit registration"}
+      <Button
+        className="w-fit"
+        disabled={
+          pending ||
+          uploadingFiles ||
+          (!token && Object.keys(uploadedFiles).length === 0)
+        }
+        type="submit"
+      >
+        {uploadingFiles
+          ? "Uploading files…"
+          : pending
+            ? "Submitting registration…"
+            : "Submit registration"}
       </Button>
       <p className="text-xs leading-5 text-muted-foreground">
         Your details are shared with the event organizers and are not shown

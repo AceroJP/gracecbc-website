@@ -12,6 +12,9 @@ import {
 } from "@/components/ui/card";
 import { formatEventDateRange } from "@/lib/events";
 import { parseRegistrationFields } from "@/lib/registration";
+import { parseRegistrationFileAnswer } from "@/lib/registration";
+import { requireAdminUser } from "@/lib/auth/server";
+import { createPrivilegedClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database.types";
 import { RegistrationActions } from "./registration-actions";
@@ -63,7 +66,16 @@ function displayAnswer(value: Json | undefined) {
     return value ? "Yes" : "No";
   }
 
-  return typeof value === "object" ? JSON.stringify(value) : String(value);
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string").join(", ");
+  }
+
+  const file = parseRegistrationFileAnswer(value);
+  if (file) {
+    return file.name;
+  }
+
+  return typeof value === "object" ? "" : String(value);
 }
 
 function formatSubmittedAt(value: string) {
@@ -77,6 +89,7 @@ export default async function EventRegistrationsPage({
   params,
   searchParams,
 }: RegistrationsPageProps) {
+  await requireAdminUser();
   const [{ eventId }, query] = await Promise.all([params, searchParams]);
   const requestedPage = Number.parseInt(query.page ?? "1", 10);
   const page =
@@ -126,6 +139,41 @@ export default async function EventRegistrationsPage({
     throw new Error("Unable to load this registration page.", {
       cause: pageError,
     });
+  }
+
+  const fileAnswers = registrations.flatMap((registration) =>
+    Object.values(asAnswerRecord(registration.answers))
+      .map(parseRegistrationFileAnswer)
+      .filter(
+        (answer): answer is NonNullable<typeof answer> =>
+          answer !== null && answer.path.startsWith(`${eventId}/`),
+      )
+      .map((answer) => ({ registrationId: registration.id, answer })),
+  );
+  const fileUrls = new Map<string, string>();
+  if (fileAnswers.length > 0) {
+    const privilegedClient = createPrivilegedClient();
+    const signedFiles = await Promise.all(
+      fileAnswers.map(async ({ registrationId, answer }) => {
+        const { data, error } = await privilegedClient.storage
+          .from("event-registration-files")
+          .createSignedUrl(answer.path, 60 * 60);
+        if (error) {
+          console.error("Unable to create admin registration file link.", error);
+          throw new Error("Unable to create an attachment link.", {
+            cause: error,
+          });
+        }
+
+        return {
+          key: `${registrationId}:${answer.path}`,
+          url: data.signedUrl,
+        };
+      }),
+    );
+    for (const file of signedFiles) {
+      fileUrls.set(file.key, file.url);
+    }
   }
 
   return (
@@ -183,6 +231,15 @@ export default async function EventRegistrationsPage({
           {registrations.map((registration: Registration) => {
             const answers = asAnswerRecord(registration.answers);
             const snapshot = parseRegistrationFields(registration.form_snapshot);
+            const registrationFileUrls = Object.fromEntries(
+              snapshot.flatMap((field) => {
+                const file = parseRegistrationFileAnswer(answers[field.id]);
+                const url = file
+                  ? fileUrls.get(`${registration.id}:${file.path}`)
+                  : undefined;
+                return url ? [[field.id, url]] : [];
+              }),
+            );
 
             return (
               <Card key={registration.id}>
@@ -196,22 +253,44 @@ export default async function EventRegistrationsPage({
                 </CardHeader>
                 <CardContent>
                   <dl className="grid gap-4 sm:grid-cols-2">
-                    {snapshot.map((field) => (
+                    {snapshot.map((field) => {
+                      const file =
+                        field.type === "file_upload"
+                          ? parseRegistrationFileAnswer(answers[field.id])
+                          : null;
+
+                      return (
                       <div className="min-w-0" key={field.id}>
                         <dt className="text-xs font-medium text-muted-foreground">
                           {field.label}
                         </dt>
                         <dd className="mt-1 break-words whitespace-pre-line text-sm">
-                          {displayAnswer(answers[field.id])}
+                          {file && registrationFileUrls[field.id] ? (
+                            <a
+                              className="font-medium text-primary underline underline-offset-4"
+                              href={registrationFileUrls[field.id]}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              {file.name}
+                            </a>
+                          ) : (
+                            displayAnswer(answers[field.id])
+                          )}
                         </dd>
                       </div>
-                    ))}
+                      );
+                    })}
                   </dl>
                   <div className="mt-5 border-t border-border pt-4">
                     <RegistrationActions
                       answers={answers}
                       eventId={event.id}
                       fields={snapshot}
+<<<<<<< HEAD
+=======
+                      fileUrls={registrationFileUrls}
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                       registrationId={registration.id}
                     />
                   </div>

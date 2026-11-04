@@ -13,7 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  registrationFieldTypes,
   type RegistrationField,
 } from "@/lib/registration";
 
@@ -180,10 +179,15 @@ export function RegistrationFieldsEditor({
                     onChange={(event) => {
                       const type = event.target
                         .value as RegistrationField["type"];
+                      const choiceType = [
+                        "select",
+                        "checkboxes",
+                        "multiple_choice",
+                      ].some((choice) => choice === type);
                       updateField(field.id, {
                         type,
                         options:
-                          type === "select"
+                          choiceType
                             ? field.options?.length
                               ? field.options
                               : ["Option 1", "Option 2"]
@@ -192,25 +196,34 @@ export function RegistrationFieldsEditor({
                     }}
                     value={field.type}
                   >
-                    {registrationFieldTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {{
-                          short_text: "Short answer",
-                          long_text: "Long answer",
-                          email: "Email address",
-                          phone: "Phone number",
-                          select: "Dropdown",
-                          checkbox: "Checkbox",
-                        }[type]}
-                      </option>
-                    ))}
+                    <optgroup label="Text Inputs">
+                      <option value="short_text">Short answer</option>
+                      <option value="long_text">Paragraph</option>
+                    </optgroup>
+                    <optgroup label="Pre-formatted Inputs">
+                      <option value="email">Email address</option>
+                      <option value="phone">Phone number</option>
+                      <option value="date">Date</option>
+                      <option value="time">Time</option>
+                    </optgroup>
+                    <optgroup label="Selection Elements">
+                      <option value="multiple_choice">Multiple choice</option>
+                      <option value="select">Dropdown</option>
+                      <option value="checkboxes">Checkboxes</option>
+                      <option value="checkbox">Checkbox (single agreement)</option>
+                    </optgroup>
+                    <optgroup label="Files">
+                      <option value="file_upload">File upload</option>
+                    </optgroup>
                   </select>
                 </Field>
 
-                {field.type === "select" && (
+                {["select", "checkboxes", "multiple_choice"].includes(
+                  field.type,
+                ) && (
                   <Field className="sm:col-span-2">
                     <FieldLabel htmlFor={`${fieldPrefix}-options`}>
-                      Dropdown options (one per line)
+                      Options (one per line)
                     </FieldLabel>
                     <Textarea
                       className="min-h-20"
@@ -227,6 +240,13 @@ export function RegistrationFieldsEditor({
                       value={field.options?.join("\n") ?? ""}
                     />
                   </Field>
+                )}
+
+                {field.type === "file_upload" && (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">
+                    One PDF, JPG, or PNG file, up to 5 MB. Files are private
+                    and available only to administrators.
+                  </p>
                 )}
 
                 <Field className="flex-row items-center gap-3" orientation="horizontal">

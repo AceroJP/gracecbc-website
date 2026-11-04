@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/auth/server";
 import { NextResponse } from "next/server";
+import { parseRegistrationFileAnswer } from "@/lib/registration";
 import type { Database } from "@/types/database.types";
 
 type ExportRouteProps = {
@@ -24,7 +25,16 @@ function answerText(value: unknown) {
     return value ? "Yes" : "No";
   }
 
-  return typeof value === "object" ? JSON.stringify(value) : String(value);
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string").join(", ");
+  }
+
+  const file = parseRegistrationFileAnswer(value);
+  if (file) {
+    return file.name;
+  }
+
+  return typeof value === "object" ? "" : String(value);
 }
 
 function safeFilename(title: string) {

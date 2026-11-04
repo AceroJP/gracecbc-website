@@ -97,7 +97,9 @@ Before deploying the Events feature, apply the migration files in `supabase/migr
 
 ### Event registration
 
-Admins can enable registration per event, add up to 20 custom fields (short/long answer, email, phone, dropdown, or checkbox), and mark each field required or optional. Registration can have an optional closing date and participant limit. Visitors complete a Cloudflare Turnstile challenge before submission. The server verifies the single-use token, applies a database-backed limit of five attempts per event/IP per fixed 15-minute window, validates every answer against the saved form, then records the submission. Registrations are private to admins and can be viewed or exported as CSV from the event in the admin portal.
+Admins can enable registration per event, add up to 20 custom fields (short answer, paragraph, email, phone, dropdown, multiple choice, checkboxes, date, time, or file upload), and mark each field required or optional. Registration can have an optional closing date and participant limit. Visitors complete a Cloudflare Turnstile challenge before submission. The server verifies the single-use token, applies a database-backed limit of five attempts per event/IP per fixed 15-minute window, validates every answer against the saved form, then records the submission. Registrations are private to admins and can be viewed, edited, deleted, or exported as CSV from the event in the admin portal. CSV exports include selected options and uploaded file names, never private Storage object paths.
+
+File-upload fields accept one PDF, JPG, or PNG file up to 5 MB. Files are uploaded directly to a private Supabase Storage bucket using short-lived signed upload URLs, then verified and attached to the registration. Only administrators can view attachments, through short-lived signed download links. Administrators can replace or remove optional attachments while editing a registration.
 
 Configure these Vercel variables before enabling event registration:
 
@@ -107,7 +109,7 @@ Configure these Vercel variables before enabling event registration:
 
 Set these variables for the Production environment in Vercel and redeploy after changing them. The Turnstile widget must also allow the production hostname (for example, `gracechristianbaptistchurch.vercel.app`) in its Cloudflare hostname settings. If the public site key is unset, the registration form is intentionally unavailable; if its hostname is not allowed, the form loads but Turnstile verification fails.
 
-The Supabase secret key is an elevated credential, not a Google Forms API key. Keep it only in the server environment. If any security setting or challenge verification is unavailable, the registration is rejected. Apply all unapplied migration files before deployment; the registration migration adds registration data and rate-limiting functions.
+The Supabase secret key is an elevated credential, not a Google Forms API key. Keep it only in the server environment. If any security setting or challenge verification is unavailable, the registration is rejected. Apply all unapplied migration files before deployment; the registration migrations add registration data and rate-limiting functions, and configure the private file-upload bucket. Never make that bucket public.
 
 ## Project structure
 

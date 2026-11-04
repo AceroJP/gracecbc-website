@@ -1,6 +1,10 @@
 "use client";
 
+<<<<<<< HEAD
 import { useId, useState } from "react";
+=======
+import { type FormEvent, useId, useRef, useState } from "react";
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -18,16 +22,40 @@ import {
   Field,
   FieldGroup,
   FieldLabel,
+<<<<<<< HEAD
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { RegistrationField } from "@/lib/registration";
 import type { Json } from "@/types/database.types";
 import {
+=======
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  registrationUploadAccept,
+  registrationUploadMaxBytes,
+  type RegistrationField,
+} from "@/lib/registration";
+import type { Json } from "@/types/database.types";
+import {
+  beginAdminRegistrationUploadAction,
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   deleteRegistrationAction,
   updateRegistrationAction,
   type RegistrationManagementState,
 } from "./actions";
+<<<<<<< HEAD
+=======
+import {
+  getRegistrationUploadExtension,
+  isRegistrationUploadContentType,
+} from "@/lib/registration";
+import { createClient } from "@/lib/supabase/client";
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
 const initialState: RegistrationManagementState = { status: "idle" };
 
@@ -35,22 +63,51 @@ function answerString(value: Json | undefined) {
   return typeof value === "string" ? value : "";
 }
 
+<<<<<<< HEAD
+=======
+function answerStrings(value: Json | undefined) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 export function RegistrationActions({
   eventId,
   registrationId,
   fields,
   answers,
+<<<<<<< HEAD
+=======
+  fileUrls,
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }: {
   eventId: string;
   registrationId: string;
   fields: RegistrationField[];
   answers: Record<string, Json | undefined>;
+<<<<<<< HEAD
+=======
+  fileUrls: Record<string, string>;
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+<<<<<<< HEAD
   const formId = useId();
+=======
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Record<
+      string,
+      { fileName: string; size: number; lastModified: number; ticket: string }
+    >
+  >({});
+  const formId = useId();
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
 
   async function handleUpdate(formData: FormData) {
     setSaving(true);
@@ -92,6 +149,138 @@ export function RegistrationActions({
     }
   }
 
+<<<<<<< HEAD
+=======
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    const pendingFiles = fields.flatMap((field) => {
+      if (field.type !== "file_upload") {
+        return [];
+      }
+
+      const file = fileInputRefs.current[field.id]?.files?.[0];
+      const uploaded = uploadedFiles[field.id];
+      if (
+        !file ||
+        (uploaded?.fileName === file.name &&
+          uploaded.size === file.size &&
+          uploaded.lastModified === file.lastModified)
+      ) {
+        return [];
+      }
+
+      return [{ fieldId: field.id, file }];
+    });
+
+    event.preventDefault();
+    if (pendingFiles.length === 0) {
+      void handleUpdate(new FormData(event.currentTarget));
+      return;
+    }
+
+    if (
+      pendingFiles.some(
+        ({ file }) =>
+          !isRegistrationUploadContentType(file.type) ||
+          !getRegistrationUploadExtension(file),
+      )
+    ) {
+      await Swal.fire({
+        icon: "error",
+        title: "Unsupported file",
+        text: "Files must be PDF, JPG, or PNG and no larger than 5 MB.",
+        confirmButtonText: "Okay",
+      });
+      return;
+    }
+
+    setUploadingFiles(true);
+    try {
+      const supabase = createClient();
+      for (const { fieldId, file } of pendingFiles) {
+        if (!isRegistrationUploadContentType(file.type)) {
+          await Swal.fire({
+            icon: "error",
+            title: "Unsupported file",
+            text: "Files must be PDF, JPG, or PNG and no larger than 5 MB.",
+            confirmButtonText: "Okay",
+          });
+          return;
+        }
+
+        const response = await beginAdminRegistrationUploadAction(
+          eventId,
+          registrationId,
+          fieldId,
+          {
+            name: file.name,
+            size: file.size,
+            lastModified: file.lastModified,
+            contentType: file.type,
+          },
+        );
+        if (response.status === "error") {
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to upload file",
+            text: response.message,
+            confirmButtonText: "Okay",
+          });
+          return;
+        }
+
+        const { error } = await supabase.storage
+          .from("event-registration-files")
+          .uploadToSignedUrl(
+            response.upload.path,
+            response.upload.token,
+            file,
+            {
+              cacheControl: "3600",
+              contentType: response.upload.contentType,
+            },
+          );
+        if (error) {
+          console.error("Unable to upload replacement registration file.", error);
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to upload file",
+            text: "We couldn’t upload this file. Please choose it again and retry.",
+            confirmButtonText: "Okay",
+          });
+          return;
+        }
+
+        setUploadedFiles((current) => ({
+          ...current,
+          [fieldId]: {
+            fileName: file.name,
+            size: file.size,
+            lastModified: file.lastModified,
+            ticket: response.upload.ticket,
+          },
+        }));
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "File uploaded",
+        text: "The file is ready. Save changes to update the registration.",
+        confirmButtonText: "Okay",
+      });
+    } catch (error) {
+      console.error("Registration file upload failed.", error);
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to upload file",
+        text: "We couldn’t upload this file right now. Please try again.",
+        confirmButtonText: "Okay",
+      });
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
   async function handleDelete() {
     const confirmation = await Swal.fire({
       icon: "warning",
@@ -156,10 +345,15 @@ export function RegistrationActions({
           </DialogHeader>
           <form
             className="flex flex-col gap-5"
+<<<<<<< HEAD
             onSubmit={(event) => {
               event.preventDefault();
               void handleUpdate(new FormData(event.currentTarget));
             }}
+=======
+            encType="multipart/form-data"
+            onSubmit={(event) => void handleFormSubmit(event)}
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
           >
             <FieldGroup>
               {fields.map((field) => {
@@ -193,6 +387,54 @@ export function RegistrationActions({
                   );
                 }
 
+<<<<<<< HEAD
+=======
+                if (
+                  field.type === "checkboxes" ||
+                  field.type === "multiple_choice"
+                ) {
+                  const selected = answerStrings(answers[field.id]);
+                  const isCheckboxGroup = field.type === "checkboxes";
+
+                  return (
+                    <FieldSet key={field.id}>
+                      <FieldLegend variant="label">
+                        {field.label}
+                        {field.required && (
+                          <span aria-hidden="true" className="text-destructive">
+                            {" "}*
+                          </span>
+                        )}
+                      </FieldLegend>
+                      <FieldGroup>
+                        {field.options?.map((option, index) => {
+                          const optionId = `${fieldId}-${index}`;
+                          return (
+                            <Field
+                              className="flex-row items-start gap-3"
+                              key={option}
+                            >
+                              <input
+                                className="mt-1 size-4 accent-primary"
+                                defaultChecked={selected.includes(option)}
+                                id={optionId}
+                                name={field.id}
+                                required={!isCheckboxGroup && field.required}
+                                type={isCheckboxGroup ? "checkbox" : "radio"}
+                                value={option}
+                              />
+                              <FieldLabel htmlFor={optionId}>
+                                {option}
+                              </FieldLabel>
+                            </Field>
+                          );
+                        })}
+                      </FieldGroup>
+                    </FieldSet>
+                  );
+                }
+
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                 return (
                   <Field key={field.id}>
                     <FieldLabel htmlFor={fieldId}>
@@ -229,6 +471,89 @@ export function RegistrationActions({
                           </option>
                         ))}
                       </select>
+<<<<<<< HEAD
+=======
+                    ) : field.type === "file_upload" ? (
+                      <div className="flex flex-col gap-3">
+                        {fileUrls[field.id] && (
+                          <a
+                            className="w-fit text-sm font-medium text-primary underline underline-offset-4"
+                            href={fileUrls[field.id]}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            View current attachment
+                          </a>
+                        )}
+                        <Input
+                          accept={registrationUploadAccept}
+                          disabled={Boolean(uploadedFiles[field.id])}
+                          id={fieldId}
+                          name={`${field.id}__upload`}
+                          onChange={() =>
+                            setUploadedFiles((current) => {
+                              const next = { ...current };
+                              delete next[field.id];
+                              return next;
+                            })
+                          }
+                          ref={(element) => {
+                            fileInputRefs.current[field.id] = element;
+                          }}
+                          type="file"
+                        />
+                        {uploadedFiles[field.id] && (
+                          <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <span className="break-all">
+                              Replacement uploaded: {uploadedFiles[field.id].fileName}
+                            </span>
+                            <input
+                              name={`${field.id}__upload_ticket`}
+                              type="hidden"
+                              value={uploadedFiles[field.id].ticket}
+                            />
+                            <Button
+                              onClick={() => {
+                                const input = fileInputRefs.current[field.id];
+                                if (input) {
+                                  input.value = "";
+                                  input.disabled = false;
+                                }
+                                setUploadedFiles((current) => {
+                                  const next = { ...current };
+                                  delete next[field.id];
+                                  return next;
+                                });
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Choose another file
+                            </Button>
+                          </div>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          PDF, JPG, or PNG; maximum{" "}
+                          {registrationUploadMaxBytes / (1024 * 1024)} MB.
+                          Upload a new file to replace the current one.
+                        </p>
+                        {fileUrls[field.id] && !field.required && (
+                          <Field className="flex-row items-start gap-3">
+                            <input
+                              className="mt-1 size-4 accent-primary"
+                              id={`${fieldId}-remove`}
+                              name={`${field.id}__remove`}
+                              type="checkbox"
+                              value="on"
+                            />
+                            <FieldLabel htmlFor={`${fieldId}-remove`}>
+                              Remove current attachment
+                            </FieldLabel>
+                          </Field>
+                        )}
+                      </div>
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                     ) : (
                       <Input
                         autoComplete={
@@ -243,7 +568,17 @@ export function RegistrationActions({
                         maxLength={field.type === "phone" ? 32 : 254}
                         name={field.id}
                         required={field.required}
+<<<<<<< HEAD
                         type={field.type === "email" ? "email" : "text"}
+=======
+                        type={
+                          field.type === "email"
+                            ? "email"
+                            : field.type === "date" || field.type === "time"
+                              ? field.type
+                              : "text"
+                        }
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
                       />
                     )}
                   </Field>
@@ -258,8 +593,17 @@ export function RegistrationActions({
               >
                 Cancel
               </Button>
+<<<<<<< HEAD
               <Button disabled={saving} type="submit">
                 {saving ? "Saving…" : "Save changes"}
+=======
+              <Button disabled={saving || uploadingFiles} type="submit">
+                {uploadingFiles
+                  ? "Uploading file…"
+                  : saving
+                    ? "Saving…"
+                    : "Save changes"}
+>>>>>>> 703a9cd (Add private storage bucket for registration uploads)
               </Button>
             </DialogFooter>
           </form>
