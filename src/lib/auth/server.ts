@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export async function getCurrentUser() {
   const supabase = await createClient();
@@ -13,4 +14,18 @@ export async function getCurrentUser() {
   }
 
   return data.user;
+}
+
+export async function requireAdminUser() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (user.app_metadata?.role !== "admin") {
+    redirect("/login?error=unauthorized");
+  }
+
+  return user;
 }

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { getCurrentUser } from "@/lib/auth/server";
+import { requireAdminUser } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
   title: {
@@ -22,15 +21,7 @@ export default function AdminLayout({
 }
 
 async function AdminContent({ children }: Readonly<{ children: ReactNode }>) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  if (user.app_metadata?.role !== "admin") {
-    redirect("/login?error=unauthorized");
-  }
+  const user = await requireAdminUser();
 
   return <AdminShell userEmail={user.email ?? ""}>{children}</AdminShell>;
 }

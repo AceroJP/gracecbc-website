@@ -89,7 +89,23 @@ Supabase SSR session-cookie refresh is wired through the Next.js proxy. Authenti
 - Add the production site URL and `/login`-related redirect URLs to Supabase Auth's allowed URLs when required by your project settings.
 - Sign out using the control in the admin header.
 
-The current repository does not yet include database migrations or application tables, and no database schema, row-level security policies, content publishing, or Realtime behavior is implemented. An empty `supabase/migrations/` directory is reserved for future migrations.
+### Events content
+
+The Events admin page creates, updates, and deletes church events stored in the same Supabase project used for authentication. Saving an event publishes it immediately on the public homepage. Events may have an optional end date for multi-day events; leave it blank for a one-day event. Event dates and times are stored as local church date/time values.
+
+Before deploying the Events feature, apply the migration files in `supabase/migrations/` to the connected Supabase project, in filename order. In the Supabase Dashboard, open **SQL Editor**, paste and run each migration that has not already been applied. Do not rerun migrations on an existing database; for an existing Events installation, apply only the new migration. The migrations grant public event reads and restrict event create, update, and delete operations to signed-in users whose server-managed `app_metadata.role` is `admin`.
+
+### Event registration
+
+Admins can enable registration per event, add up to 20 custom fields (short/long answer, email, phone, dropdown, or checkbox), and mark each field required or optional. Registration can have an optional closing date and participant limit. Visitors complete a Cloudflare Turnstile challenge before submission. The server verifies the single-use token, applies a database-backed limit of five attempts per event/IP per fixed 15-minute window, validates every answer against the saved form, then records the submission. Registrations are private to admins and can be viewed or exported as CSV from the event in the admin portal.
+
+Configure these Vercel variables before enabling event registration:
+
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: the public site key from a Cloudflare Turnstile widget configured for the website hostnames.
+- `TURNSTILE_SECRET_KEY`: the matching Turnstile secret; server-only.
+- `SUPABASE_SECRET_KEY`: a Supabase secret key used only by the server to call narrowly granted registration and rate-limit database functions. Never use a `NEXT_PUBLIC_` prefix or expose this value to the browser.
+
+The Supabase secret key is an elevated credential, not a Google Forms API key. Keep it only in the server environment. If any security setting or challenge verification is unavailable, the registration is rejected. Apply all unapplied migration files before deployment; the registration migration adds registration data and rate-limiting functions.
 
 ## Project structure
 
@@ -98,7 +114,7 @@ src/
   app/
     (public)/             Public website routes and layout
     auth/                 Supabase email/password sign-in and sign-out actions
-    admin/                Admin dashboard and role-protected sections
+    admin/                Admin dashboard, Events manager, and protected sections
     error.tsx             Application error boundary
     globals.css           Tailwind import and design tokens
     layout.tsx            Root layout, fonts, and metadata
@@ -113,13 +129,13 @@ src/
     supabase/              Browser/server clients and session proxy
     env.ts                 Runtime validation for public Supabase config
   types/
-    database.types.ts     Supabase database type placeholder
+    database.types.ts     Supabase database types
 public/
   icons/
   images/
   logos/
 supabase/
-  migrations/              Reserved for database migrations
+  migrations/              Supabase database schema migrations
 ```
 
 Other key files: `components.json` configures shadcn/Base Nova and aliases; `eslint.config.mjs` configures ESLint; `postcss.config.mjs` enables Tailwind CSS 4; `tsconfig.json` enables strict TypeScript and the `@/*` alias.
@@ -133,16 +149,17 @@ Other key files: `components.json` configures shadcn/Base Nova and aliases; `esl
 
 ## Current implementation status
 
-- **Public website:** responsive shell and content-area placeholders are in place. Church-specific schedules, addresses, contact information, events, and other content remain pending confirmation.
-- **Admin workspace:** responsive dashboard and placeholder sections are in place. Server-side checks require a signed-in Supabase user with `app_metadata.role === "admin"`.
-- **Supabase:** environment validation, browser/server clients, session refresh, email/password sign-in, and admin role checks are implemented. Database schema, RLS policies, storage, and Realtime features are not implemented.
+- **Public website:** published events and their enabled registration forms are displayed on the homepage. Other church-specific content remains pending confirmation.
+- **Admin workspace:** events and registration forms can be managed; authorized admins can view registrations and export them as CSV. Remaining sections are placeholders. Server-side checks require a signed-in Supabase user with `app_metadata.role === "admin"`.
+- **Supabase:** environment validation, browser/server clients, session refresh, email/password sign-in, admin role checks, event RLS, private registration submissions, challenge verification, and database-backed registration rate limiting are implemented. Apply all unapplied migrations and configure the required Vercel environment variables before enabling production registration. Storage and Realtime features are not implemented.
 - **Design system:** Tailwind theme tokens and reusable button, input, card, and dialog components are available.
 - **Verification:** lint, TypeScript, and production build passed during Phase 9. Browser checks confirmed public/admin pages and responsive layouts at mobile, tablet, and desktop widths.
 
 ## Remaining setup and implementation
 
 - Confirm and supply church-approved public website content.
-- Design database tables and migrations, then define and verify row-level security policies before storing application data.
+- Apply the Supabase migrations to the production project and configure Turnstile/Supabase server secrets before deploying registration.
+- Design database tables and migrations for the remaining content sections, then define and verify row-level security policies before storing that content.
 - Grant `app_metadata.role = "admin"` to the intended administrator account using a trusted administrative process.
 - Configure and verify Supabase Auth redirect URLs when authentication is implemented.
 - Add and test storage, publishing, and Realtime behavior only when those features are approved and their policies are in place.

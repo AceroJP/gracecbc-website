@@ -14,8 +14,8 @@ const workspaceSections = [
   },
   {
     title: "Events & announcements",
-    description: "Prepare updates for the public website.",
-    status: "Content placeholder",
+    description: "Publish church events on the public homepage.",
+    status: "Events are live",
     icon: CalendarDays,
   },
   {
@@ -44,12 +44,12 @@ export default function AdminDashboardPage() {
             Website workspace
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            The management experience is being prepared. No website content or
-            account data is managed here yet.
+            Manage church website content. Events can now be published directly
+            from this workspace.
           </p>
         </div>
         <span className="w-fit rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          Initial interface
+          Events manager active
         </span>
       </div>
 

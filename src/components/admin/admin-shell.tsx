@@ -101,10 +101,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent/65 p-4">
-        <p className="text-xs font-semibold">Setup in progress</p>
+        <p className="text-xs font-semibold">Admin workspace</p>
         <p className="mt-1 text-xs leading-5 text-sidebar-foreground/60">
-          Admin access is protected. Website management tools are still
-          interface placeholders.
+          Events can be published from this workspace. Other content tools are
+          still being built.
         </p>
       </div>
     </>

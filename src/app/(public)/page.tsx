@@ -7,15 +7,20 @@ import {
   MapPin,
   PanelsTopLeft,
 } from "lucide-react";
+import { formatEventDateRange, formatEventTime } from "@/lib/events";
+import { getOptionalTurnstileSiteKey } from "@/lib/env";
+import { parseRegistrationFields } from "@/lib/registration";
+import { createClient } from "@/lib/supabase/server";
+import { RegistrationForm } from "@/components/public/registration-form";
 
 const websiteAreas = [
   {
-    id: "events",
+    id: "announcements",
     title: "Events & announcements",
     description:
-      "A home for upcoming events and church announcements once content is provided.",
+      "Church events are published here; announcements are being prepared.",
     icon: CalendarDays,
-    label: "Content area",
+    label: "Events live",
   },
   {
     id: "schedules",
@@ -59,7 +64,24 @@ const websiteAreas = [
   },
 ];
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const turnstileSiteKey = getOptionalTurnstileSiteKey();
+  const supabase = await createClient();
+  const { data: events, error } = await supabase
+    .from("events")
+    .select(
+      "id, title, description, event_date, end_date, starts_at, ends_at, location, registration_enabled, registration_fields, registration_deadline",
+    )
+    .order("event_date", { ascending: true })
+    .order("starts_at", { ascending: true })
+    .limit(6);
+
+  if (error) {
+    throw new Error("Unable to load public events.", { cause: error });
+  }
+
   return (
     <main>
       <section
@@ -82,9 +104,9 @@ export default function Home() {
             </p>
             <a
               className="mt-9 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-brand transition-colors hover:bg-white/85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-              href="#website-areas"
+              href="#events"
             >
-              Explore this website
+              See upcoming events
               <ArrowUpRight aria-hidden="true" className="size-4" />
             </a>
           </div>
@@ -104,6 +126,93 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section
+        aria-labelledby="upcoming-events-heading"
+        className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+        id="events"
+      >
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
+            Church life
+          </p>
+          <h2
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+            id="upcoming-events-heading"
+          >
+            Events
+          </h2>
+          <p className="mt-3 text-base leading-7 text-muted-foreground">
+            See what is happening at Grace Christian Baptist Church.
+          </p>
+        </div>
+
+        {events.length === 0 ? (
+          <p className="mt-8 rounded-2xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted-foreground">
+            No events have been posted yet. Please check back soon.
+          </p>
+        ) : (
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {events.map((event) => (
+              <article
+                className="rounded-2xl border border-border bg-card p-6"
+                key={event.id}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                    <CalendarDays aria-hidden="true" className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-medium text-brand">
+                      {formatEventDateRange(event.event_date, event.end_date)}
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold tracking-tight">
+                      {event.title}
+                    </h3>
+                  </div>
+                </div>
+                <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                  {event.description}
+                </p>
+                <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
+                  <p className="inline-flex items-center gap-2">
+                    <Clock3 aria-hidden="true" className="size-4 shrink-0" />
+                    {formatEventTime(event.starts_at)}
+                    {event.ends_at && ` – ${formatEventTime(event.ends_at)}`}
+                  </p>
+                  <p className="inline-flex items-center gap-2">
+                    <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                    {event.location}
+                  </p>
+                </div>
+                {event.registration_enabled && (
+                  <details className="mt-5 border-t border-border pt-4">
+                    <summary className="w-fit cursor-pointer rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                      Register for this event
+                    </summary>
+                    {(event.end_date ?? event.event_date) <
+                      new Date().toISOString().slice(0, 10) ||
+                    (event.registration_deadline !== null &&
+                      event.registration_deadline <
+                        new Date().toISOString().slice(0, 10)) ? (
+                      <p className="mt-5 rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
+                        Registration for this event has closed.
+                      </p>
+                    ) : (
+                      <RegistrationForm
+                        deadline={event.registration_deadline}
+                        eventId={event.id}
+                        fields={parseRegistrationFields(event.registration_fields)}
+                        siteKey={turnstileSiteKey}
+                      />
+                    )}
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section
