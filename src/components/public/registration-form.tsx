@@ -18,6 +18,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   submitRegistrationAction,
   type RegistrationSubmissionState,
 } from "@/app/(public)/registration-actions";
@@ -124,6 +132,56 @@ function TurnstileChallenge({
 
 export function RegistrationForm({
   eventId,
+  eventTitle,
+  fields,
+  siteKey,
+  deadline,
+  isClosed,
+}: {
+  eventId: string;
+  eventTitle: string;
+  fields: RegistrationField[];
+  siteKey: string | null;
+  deadline: string | null;
+  isClosed: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger
+        className="mt-5"
+        render={<Button />}
+      >
+        Register for this event
+      </DialogTrigger>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Register for {eventTitle}</DialogTitle>
+          <DialogDescription>
+            Complete the form below to register for this event.
+          </DialogDescription>
+        </DialogHeader>
+        {open &&
+          (isClosed ? (
+            <p className="rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
+              Registration for this event has closed.
+            </p>
+          ) : (
+            <RegistrationFormContent
+              deadline={deadline}
+              eventId={eventId}
+              fields={fields}
+              siteKey={siteKey}
+            />
+          ))}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RegistrationFormContent({
+  eventId,
   fields,
   siteKey,
   deadline,
@@ -169,7 +227,7 @@ export function RegistrationForm({
 
   if (!siteKey) {
     return (
-      <p className="mt-5 rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
+      <p className="rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
         Online registration is temporarily unavailable. Please contact the
         church for assistance.
       </p>
@@ -177,7 +235,7 @@ export function RegistrationForm({
   }
 
   return (
-    <form action={formAction} className="mt-5 flex flex-col gap-5">
+    <form action={formAction} className="flex flex-col gap-5">
       {deadline && (
         <p className="text-sm text-muted-foreground">
           Registration closes on{" "}

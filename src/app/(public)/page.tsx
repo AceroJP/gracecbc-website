@@ -187,27 +187,20 @@ export default async function Home() {
                   </p>
                 </div>
                 {event.registration_enabled && (
-                  <details className="mt-5 border-t border-border pt-4">
-                    <summary className="w-fit cursor-pointer rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                      Register for this event
-                    </summary>
-                    {(event.end_date ?? event.event_date) <
-                      new Date().toISOString().slice(0, 10) ||
-                    (event.registration_deadline !== null &&
-                      event.registration_deadline <
-                        new Date().toISOString().slice(0, 10)) ? (
-                      <p className="mt-5 rounded-xl border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
-                        Registration for this event has closed.
-                      </p>
-                    ) : (
-                      <RegistrationForm
-                        deadline={event.registration_deadline}
-                        eventId={event.id}
-                        fields={parseRegistrationFields(event.registration_fields)}
-                        siteKey={turnstileSiteKey}
-                      />
-                    )}
-                  </details>
+                  <RegistrationForm
+                    deadline={event.registration_deadline}
+                    eventId={event.id}
+                    eventTitle={event.title}
+                    fields={parseRegistrationFields(event.registration_fields)}
+                    isClosed={
+                      (event.end_date ?? event.event_date) <
+                        new Date().toISOString().slice(0, 10) ||
+                      (event.registration_deadline !== null &&
+                        event.registration_deadline <
+                          new Date().toISOString().slice(0, 10))
+                    }
+                    siteKey={turnstileSiteKey}
+                  />
                 )}
               </article>
             ))}

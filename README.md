@@ -105,6 +105,8 @@ Configure these Vercel variables before enabling event registration:
 - `TURNSTILE_SECRET_KEY`: the matching Turnstile secret; server-only.
 - `SUPABASE_SECRET_KEY`: a Supabase secret key used only by the server to call narrowly granted registration and rate-limit database functions. Never use a `NEXT_PUBLIC_` prefix or expose this value to the browser.
 
+Set these variables for the Production environment in Vercel and redeploy after changing them. The Turnstile widget must also allow the production hostname (for example, `gracechristianbaptistchurch.vercel.app`) in its Cloudflare hostname settings. If the public site key is unset, the registration form is intentionally unavailable; if its hostname is not allowed, the form loads but Turnstile verification fails.
+
 The Supabase secret key is an elevated credential, not a Google Forms API key. Keep it only in the server environment. If any security setting or challenge verification is unavailable, the registration is rejected. Apply all unapplied migration files before deployment; the registration migration adds registration data and rate-limiting functions.
 
 ## Project structure
