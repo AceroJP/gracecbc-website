@@ -2,13 +2,70 @@ import type { Metadata } from "next";
 import { ArrowRight, BookOpenText, Heart, Sparkles } from "lucide-react";
 import { ContributorApplicationModal } from "@/components/public/contributor-application-modal";
 import { WriteDevotionalButton } from "@/components/public/write-devotional-button";
+import { DevotionalList } from "./devotional-list";
+import { createClient } from "@/lib/supabase/server";
+import { createPrivilegedClient } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = {
   title: "Community devotionals",
   description: "Read and share church-reviewed devotionals with the GCBC community.",
 };
 
-export default function DevotionalsPage() {
+export const dynamic = "force-dynamic";
+
+type DevotionalsPageProps = {
+  searchParams: Promise<{ q?: string; category?: string; page?: string }>;
+};
+
+export default async function DevotionalsPage({ searchParams }: DevotionalsPageProps) {
+  const params = await searchParams;
+  const query = params.q?.trim() ?? "";
+  const category = params.category?.trim() ?? "";
+  const page = Math.max(1, Number(params.page) || 1);
+  const pageSize = 6;
+  const supabase = await createClient();
+  const privilegedClient = createPrivilegedClient();
+  let categoryId: string | null = null;
+  if (category) {
+    const { data: selectedCategory, error: categoryError } = await supabase
+      .from("devotional_categories")
+      .select("id")
+      .eq("slug", category)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (categoryError) {
+      throw new Error("Unable to load devotional category.", {
+        cause: categoryError,
+      });
+    }
+    categoryId = selectedCategory?.id ?? null;
+  }
+  let request = supabase
+    .from("devotionals")
+    .select("id, contributor_id, category_id, title, slug, bible_passage, bible_translation, key_verse, message, personal_application, closing_prayer, status, is_featured, submitted_at, published_at, approved_by, approved_at, rejection_reason, moderation_note, created_at, updated_at, reaction_count", { count: "exact" })
+    .eq("status", "published");
+  if (query) request = request.or(`title.ilike.%${query}%,bible_passage.ilike.%${query}%,message.ilike.%${query}%`);
+  if (category) request = request.eq("category_id", categoryId ?? "00000000-0000-0000-0000-000000000000");
+  const { data, count, error } = await request
+    .order("is_featured", { ascending: false })
+    .order("published_at", { ascending: false })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw new Error("Unable to load public devotionals.", { cause: error });
+  const contributorIds = [...new Set((data ?? []).map((item) => item.contributor_id))];
+  const categoryIds = [...new Set((data ?? []).map((item) => item.category_id).filter(Boolean))] as string[];
+  const [{ data: contributors }, { data: categories }] = await Promise.all([
+    contributorIds.length ? privilegedClient.from("devotional_contributors").select("id, full_name").in("id", contributorIds) : Promise.resolve({ data: [] }),
+    categoryIds.length ? supabase.from("devotional_categories").select("id, name").in("id", categoryIds) : Promise.resolve({ data: [] }),
+  ]);
+  const contributorMap = new Map((contributors ?? []).map((item) => [item.id, item.full_name]));
+  const categoryMap = new Map((categories ?? []).map((item) => [item.id, item.name]));
+  const devotionals = (data ?? []).map((item) => ({
+    ...item,
+    author: contributorMap.get(item.contributor_id) ?? "GCBC contributor",
+    category: item.category_id ? categoryMap.get(item.category_id) ?? null : null,
+  }));
+  const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
+
   return (
     <main className="min-h-[calc(100vh-76px)] bg-[radial-gradient(circle_at_top_right,oklch(0.94_0.025_185/.45),transparent_35%)]">
       <div className="mx-auto w-full max-w-7xl px-6 py-10 sm:px-10 lg:px-12 lg:py-16">
@@ -73,6 +130,7 @@ export default function DevotionalsPage() {
             </div>
           ))}
         </section>
+        <DevotionalList category={category} devotionals={devotionals} page={page} query={query} totalPages={totalPages} />
         <section className="mt-12 rounded-3xl border border-dashed border-border bg-card/60 px-6 py-16 text-center shadow-sm sm:px-10">
           <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
             <BookOpenText aria-hidden="true" />

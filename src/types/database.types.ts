@@ -213,6 +213,147 @@ export type Database = {
         };
         Relationships: [];
       };
+      devotional_categories: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          description: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          description?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          description?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      devotionals: {
+        Row: {
+          id: string;
+          contributor_id: string;
+          category_id: string | null;
+          title: string;
+          slug: string;
+          bible_passage: string;
+          bible_translation: string;
+          key_verse: string;
+          message: string;
+          personal_application: string;
+          closing_prayer: string;
+          status: string;
+          is_featured: boolean;
+          submitted_at: string;
+          published_at: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+          rejection_reason: string | null;
+          moderation_note: string | null;
+          created_at: string;
+          updated_at: string;
+          reaction_count: number;
+        };
+        Insert: {
+          id?: string;
+          contributor_id: string;
+          category_id?: string | null;
+          title: string;
+          slug: string;
+          bible_passage: string;
+          bible_translation: string;
+          key_verse: string;
+          message: string;
+          personal_application: string;
+          closing_prayer: string;
+          status?: string;
+          is_featured?: boolean;
+          submitted_at?: string;
+          published_at?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          rejection_reason?: string | null;
+          moderation_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          reaction_count?: number;
+        };
+        Update: {
+          id?: string;
+          contributor_id?: string;
+          category_id?: string | null;
+          title?: string;
+          slug?: string;
+          bible_passage?: string;
+          bible_translation?: string;
+          key_verse?: string;
+          message?: string;
+          personal_application?: string;
+          closing_prayer?: string;
+          status?: string;
+          is_featured?: boolean;
+          submitted_at?: string;
+          published_at?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          rejection_reason?: string | null;
+          moderation_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          reaction_count?: number;
+        };
+        Relationships: [];
+      };
+      devotional_audit_log: {
+        Row: {
+          id: string;
+          actor_user_id: string | null;
+          action: string;
+          entity_type: string;
+          entity_id: string | null;
+          previous_status: string | null;
+          new_status: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_user_id?: string | null;
+          action: string;
+          entity_type: string;
+          entity_id?: string | null;
+          previous_status?: string | null;
+          new_status?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          actor_user_id?: string | null;
+          action?: string;
+          entity_type?: string;
+          entity_id?: string | null;
+          previous_status?: string | null;
+          new_status?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -250,6 +391,35 @@ export type Database = {
           p_expires_at: string;
         };
         Returns: boolean;
+      };
+      create_devotional_submission: {
+        Args: {
+          p_grant_hash: string;
+          p_title: string;
+          p_slug: string;
+          p_bible_passage: string;
+          p_bible_translation: string;
+          p_key_verse: string;
+          p_message: string;
+          p_personal_application: string;
+          p_closing_prayer: string;
+          p_category_id?: string | null;
+        };
+        Returns: {
+          status: string;
+          devotional_id: string | null;
+        }[];
+      };
+      toggle_devotional_reaction: {
+        Args: {
+          p_devotional_id: string;
+          p_visitor_identifier_hash: string;
+          p_action: string;
+        };
+        Returns: {
+          liked: boolean;
+          reaction_count: number;
+        }[];
       };
     };
     Enums: Record<never, never>;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState, useTransition } from "react";
 import { verifyContributorCredentials, type ContributorCredentialState } from "@/app/(public)/devotionals/credential-actions";
+import { DevotionalSubmissionForm } from "@/components/public/devotional-submission-form";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -11,14 +12,20 @@ const initialState: ContributorCredentialState = { status: "idle" };
 
 export function WriteDevotionalButton() {
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    verifyContributorCredentials,
-    initialState,
-  );
+  const [writing, setWriting] = useState(false);
+  const [state, setState] = useState(initialState);
+  const [pending, startTransition] = useTransition();
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} type="button">
+      <Button
+        onClick={() => {
+          setState(initialState);
+          setWriting(false);
+          setOpen(true);
+        }}
+        type="button"
+      >
         Write a Devotional
       </Button>
       <Dialog
@@ -29,13 +36,30 @@ export function WriteDevotionalButton() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Write a devotional</DialogTitle>
+            <DialogTitle>{writing ? "Write a devotional" : "Contributor access"}</DialogTitle>
             <DialogDescription>
-              Enter your approved contributor credentials to continue. Your
-              access is temporary and will not create a persistent login.
+              {writing
+                ? "Complete your devotional below. It will be reviewed before publication."
+                : "Enter your approved contributor credentials to continue. Your access is temporary and will not create a persistent login."}
             </DialogDescription>
           </DialogHeader>
-          <form action={formAction} className="space-y-5">
+          {writing ? (
+            <DevotionalSubmissionForm onComplete={() => setOpen(false)} />
+          ) : (
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                startTransition(async () => {
+                  const result = await verifyContributorCredentials(state, formData);
+                  setState(result);
+                  if (result.status === "success") {
+                    setWriting(true);
+                  }
+                });
+              }}
+            >
             {state.status !== "idle" && (
               <p
                 aria-live="polite"
@@ -75,7 +99,8 @@ export function WriteDevotionalButton() {
                 {pending ? "Verifying…" : "Continue"}
               </Button>
             </DialogFooter>
-          </form>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

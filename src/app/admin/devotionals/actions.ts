@@ -1,0 +1,222 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { requireAdminUser } from "@/lib/auth/server";
+import { createPrivilegedClient } from "@/lib/supabase/admin";
+
+const devotionalActionSchema = z.object({
+  id: z.uuid(),
+  action: z.enum(["publish", "reject", "unpublish", "delete"]),
+  reason: z.string().trim().max(2000),
+  featured: z.enum(["on", "off"]).optional(),
+});
+const applicationActionSchema = z.object({
+  id: z.uuid(),
+  action: z.enum(["approve", "reject", "suspend", "reactivate"]),
+  reason: z.string().trim().max(2000),
+});
+
+type ActionResult = { status: "success" | "error"; message: string };
+
+async function writeAudit(
+  client: ReturnType<typeof createPrivilegedClient>,
+  actorId: string,
+  action: string,
+  entityType: string,
+  entityId: string,
+  previousStatus: string | null,
+  newStatus: string | null,
+  metadata: Record<string, string>,
+) {
+  const { error } = await client.from("devotional_audit_log").insert({
+    actor_user_id: actorId,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    previous_status: previousStatus,
+    new_status: newStatus,
+    metadata,
+  });
+
+  if (error) {
+    throw new Error("Unable to record devotional audit event.", { cause: error });
+  }
+}
+
+export async function moderateDevotionalAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const parsed = devotionalActionSchema.safeParse({
+    id: formData.get("id"),
+    action: formData.get("action"),
+    reason: formData.get("reason") ?? "",
+    featured: formData.get("featured") ?? "off",
+  });
+
+  if (!parsed.success) {
+    return { status: "error", message: "Invalid moderation request." };
+  }
+
+  const client = createPrivilegedClient();
+  const { data: devotional, error: lookupError } = await client
+    .from("devotionals")
+    .select("id, status, is_featured")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error("Unable to load devotional.", { cause: lookupError });
+  }
+  if (!devotional) {
+    return { status: "error", message: "That devotional no longer exists." };
+  }
+
+  const now = new Date().toISOString();
+  if (parsed.data.action === "delete") {
+    const { error } = await client
+      .from("devotionals")
+      .delete()
+      .eq("id", parsed.data.id);
+    if (error) {
+      throw new Error("Unable to delete devotional.", { cause: error });
+    }
+    await writeAudit(
+      client,
+      admin.id,
+      "delete",
+      "devotional",
+      parsed.data.id,
+      devotional.status,
+      null,
+      { reason: parsed.data.reason },
+    );
+  } else {
+    const update =
+      parsed.data.action === "publish"
+        ? {
+            status: "published",
+            published_at: now,
+            approved_by: admin.id,
+            approved_at: now,
+            rejection_reason: null,
+            is_featured: parsed.data.featured === "on",
+            updated_at: now,
+          }
+        : parsed.data.action === "reject"
+          ? {
+              status: "rejected",
+              rejection_reason: parsed.data.reason || "Not approved for publication.",
+              is_featured: false,
+              updated_at: now,
+            }
+          : {
+              status: "unpublished",
+              is_featured: false,
+              updated_at: now,
+            };
+    const { error } = await client
+      .from("devotionals")
+      .update(update)
+      .eq("id", parsed.data.id);
+    if (error) {
+      throw new Error("Unable to update devotional.", { cause: error });
+    }
+    await writeAudit(
+      client,
+      admin.id,
+      parsed.data.action,
+      "devotional",
+      parsed.data.id,
+      devotional.status,
+      update.status,
+      { reason: parsed.data.reason },
+    );
+  }
+
+  revalidatePath("/admin/devotionals");
+  revalidatePath("/devotionals");
+  return { status: "success", message: "Devotional moderation was saved." };
+}
+
+export async function reviewContributorApplicationAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const parsed = applicationActionSchema.safeParse({
+    id: formData.get("id"),
+    action: formData.get("action"),
+    reason: formData.get("reason") ?? "",
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Invalid application review request." };
+  }
+
+  const client = createPrivilegedClient();
+  const { data: application, error: applicationError } = await client
+    .from("devotional_applications")
+    .select("id, contributor_id, status")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (applicationError) {
+    throw new Error("Unable to load contributor application.", {
+      cause: applicationError,
+    });
+  }
+  if (!application) {
+    return { status: "error", message: "That application no longer exists." };
+  }
+
+  const contributorStatus =
+    parsed.data.action === "approve" || parsed.data.action === "reactivate"
+      ? "approved"
+      : parsed.data.action === "suspend"
+        ? "suspended"
+        : "rejected";
+  const applicationStatus =
+    parsed.data.action === "approve" || parsed.data.action === "reactivate"
+      ? "approved"
+      : "rejected";
+  const now = new Date().toISOString();
+
+  const { error: contributorError } = await client
+    .from("devotional_contributors")
+    .update({ status: contributorStatus, updated_at: now })
+    .eq("id", application.contributor_id);
+  if (contributorError) {
+    throw new Error("Unable to update contributor status.", {
+      cause: contributorError,
+    });
+  }
+
+  const { error: updateError } = await client
+    .from("devotional_applications")
+    .update({
+      status: applicationStatus,
+      reviewed_by: admin.id,
+      reviewed_at: now,
+      rejection_reason:
+        parsed.data.action === "reject" ? parsed.data.reason || null : null,
+      updated_at: now,
+    })
+    .eq("id", parsed.data.id);
+  if (updateError) {
+    throw new Error("Unable to update contributor application.", {
+      cause: updateError,
+    });
+  }
+
+  await writeAudit(
+    client,
+    admin.id,
+    parsed.data.action,
+    "contributor_application",
+    parsed.data.id,
+    application.status,
+    applicationStatus,
+    { reason: parsed.data.reason },
+  );
+  revalidatePath("/admin/devotionals");
+  return { status: "success", message: "Contributor application was reviewed." };
+}
