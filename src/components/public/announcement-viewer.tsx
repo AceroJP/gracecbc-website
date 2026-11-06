@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Presentation } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { AnnouncementPresentationType } from "@/lib/announcements";
+import type { ReactNode } from "react";
 
 export type PublicAnnouncement = {
   id: string;
@@ -29,10 +30,10 @@ export type PublicAnnouncement = {
 
 export function AnnouncementViewer({
   announcement,
-  hasBackground = false,
+  children,
 }: {
   announcement: PublicAnnouncement;
-  hasBackground?: boolean;
+  children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -50,15 +51,14 @@ export function AnnouncementViewer({
     >
       <DialogTrigger
         render={
-          <Button
-            className="mt-5 w-full sm:w-fit"
+          <button
+            aria-label={`View announcement: ${announcement.title}`}
+            className="group/card block h-full w-full cursor-pointer rounded-xl border-0 bg-transparent p-0 text-left text-inherit focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
             type="button"
-            variant={hasBackground ? "secondary" : "outline"}
           />
         }
       >
-        <Presentation data-icon="inline-start" />
-        View announcement
+        {children}
       </DialogTrigger>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
@@ -87,6 +87,7 @@ export function AnnouncementViewer({
                   target="_blank"
                 />
               }
+              nativeButton={false}
               type="button"
               variant="outline"
             >
@@ -125,10 +126,10 @@ export function AnnouncementViewer({
           </div>
         ) : totalSlides > 0 ? (
           <div className="grid gap-4">
-            <div className="relative flex min-h-56 items-center justify-center overflow-hidden rounded-xl bg-muted p-3 sm:min-h-96 sm:p-6">
+            <div className="relative flex max-h-[80dvh] items-center justify-center overflow-hidden rounded-xl bg-muted">
               <Image
                 alt={`${announcement.title}, slide ${slideIndex + 1} of ${totalSlides}`}
-                className="max-h-[65dvh] w-full object-contain"
+                className="h-auto max-h-[80dvh] w-auto max-w-full object-contain"
                 height={1080}
                 src={announcement.slide_urls[slideIndex]}
                 unoptimized

@@ -3,6 +3,7 @@ import {
   BookOpenText,
   CalendarDays,
   Clock3,
+  Cross,
   Headphones,
   MapPin,
   PanelsTopLeft,
@@ -209,60 +210,79 @@ export default async function Home() {
             No announcements have been posted yet. Please check back soon.
           </p>
         ) : (
-          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] items-stretch gap-6">
             {publicAnnouncements.map((announcement) => (
-              <article
-                className="grid overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-[2fr_3fr]"
+              <AnnouncementViewer
+                announcement={announcement}
                 key={announcement.id}
               >
-                <div className="relative min-h-48 bg-muted sm:min-h-full">
-                  {(announcement.background_url ||
-                    announcement.slide_urls[0]) && (
-                    <Image
-                      alt={`${announcement.title} announcement`}
-                      className="object-cover"
-                      fill
-                      sizes="(min-width: 1024px) 13vw, (min-width: 640px) 20vw, 100vw"
-                      src={
-                        announcement.background_url ??
-                        announcement.slide_urls[0]
-                      }
-                      unoptimized
-                    />
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-col items-start p-5 sm:p-6">
-                  <p className="text-xs font-medium text-brand">
-                    {formatAnnouncementDate(announcement.created_at)}
-                  </p>
-                  {announcement.categories.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {announcement.categories.map((category) => (
-                        <span
-                          className="rounded-full bg-brand/8 px-3 py-1 text-[11px] font-medium text-brand"
-                          key={category}
-                        >
-                          {getAnnouncementCategoryLabel(category)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <h3 className="mt-3 text-lg font-semibold tracking-tight">
-                    {announcement.title}
-                  </h3>
-                  {announcement.body && (
-                    <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                <article className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-[3px] group-hover/card:shadow-[0_10px_24px_rgba(0,0,0,0.1)] motion-reduce:transition-none motion-reduce:group-hover/card:translate-y-0">
+                  <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-brand/10">
+                    {(announcement.background_url ||
+                      announcement.slide_urls[0]) ? (
+                      <>
+                        <Image
+                          alt=""
+                          aria-hidden="true"
+                          className="scale-125 object-cover blur-[20px]"
+                          fill
+                          sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
+                          src={
+                            announcement.background_url ??
+                            announcement.slide_urls[0]
+                          }
+                          unoptimized
+                        />
+                        <Image
+                          alt={`${announcement.title} announcement flyer`}
+                          className="object-contain transition-transform duration-200 group-hover/card:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover/card:scale-100"
+                          fill
+                          sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 100vw"
+                          src={
+                            announcement.background_url ??
+                            announcement.slide_urls[0]
+                          }
+                          unoptimized
+                        />
+                      </>
+                    ) : (
+                      <div className="flex size-full items-center justify-center">
+                        <Cross
+                          aria-hidden="true"
+                          className="size-8 text-brand/35"
+                          strokeWidth={1.5}
+                        />
+                      </div>
+                    )}
+                    {announcement.categories.length > 0 && (
+                      <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap gap-2 p-3">
+                        {announcement.categories.map((category) => (
+                          <span
+                            className="rounded-full bg-card/95 px-3 py-1 text-[11px] font-medium text-brand shadow-sm"
+                            key={category}
+                          >
+                            {getAnnouncementCategoryLabel(category)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <p className="text-xs font-medium text-brand">
+                      {formatAnnouncementDate(announcement.created_at)}
+                    </p>
+                    <h3 className="mt-2 min-h-14 line-clamp-2 text-lg font-bold leading-7 tracking-tight">
+                      {announcement.title}
+                    </h3>
+                    <p className="mt-2 min-h-12 line-clamp-2 whitespace-pre-line text-[15px] leading-6 text-muted-foreground">
                       {announcement.body}
                     </p>
-                  )}
-                  <div className="mt-auto pt-5">
-                    <AnnouncementViewer
-                      announcement={announcement}
-                      hasBackground={Boolean(announcement.background_url)}
-                    />
+                    <p className="mt-auto pt-2 text-sm font-medium text-brand">
+                      Read more →
+                    </p>
                   </div>
-                </div>
-              </article>
+                </article>
+              </AnnouncementViewer>
             ))}
           </div>
         )}
