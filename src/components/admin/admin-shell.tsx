@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import Swal from "sweetalert2";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,13 @@ export function AdminShell({
 }: Readonly<{ children: ReactNode; userEmail: string }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (Swal.isLoading()) {
+      Swal.close();
+    }
+  }, []);
+
   const currentPage =
     navigation.find(
       ({ href }) =>
