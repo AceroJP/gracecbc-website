@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ContributorApplicationForm } from "@/components/public/contributor-application-form";
+import { VerificationFragmentHandler } from "@/components/public/verification-fragment-handler";
 
 export const metadata: Metadata = {
   title: "Become a devotional contributor",
@@ -12,6 +13,7 @@ export default function ContributorApplicationPage() {
   return (
     <Suspense fallback={null}>
       <main className="mx-auto w-full max-w-3xl px-6 py-16 sm:px-10 lg:py-24">
+        <VerificationFragmentHandler />
         <Link className="text-sm font-medium text-brand hover:underline" href="/devotionals">
           ← Back to devotionals
         </Link>
