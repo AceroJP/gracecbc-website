@@ -212,39 +212,34 @@ export default async function Home() {
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {publicAnnouncements.map((announcement) => (
               <article
-                className={
-                  announcement.background_url
-                    ? "relative isolate overflow-hidden rounded-2xl border border-border bg-cover bg-center p-6 text-white before:absolute before:inset-0 before:-z-10 before:bg-gradient-to-t before:from-black/80 before:via-black/45 before:to-black/25 before:content-['']"
-                    : "relative isolate overflow-hidden rounded-2xl border border-border bg-card p-6"
-                }
-                style={
-                  announcement.background_url
-                    ? {
-                        backgroundImage: `url("${announcement.background_url}")`,
-                      }
-                    : undefined
-                }
+                className="grid overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-[2fr_3fr]"
                 key={announcement.id}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p
-                    className={
-                      announcement.background_url
-                        ? "text-xs font-medium text-white/90"
-                        : "text-xs font-medium text-brand"
-                    }
-                  >
+                <div className="relative min-h-48 bg-muted sm:min-h-full">
+                  {(announcement.background_url ||
+                    announcement.slide_urls[0]) && (
+                    <Image
+                      alt={`${announcement.title} announcement`}
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 1024px) 13vw, (min-width: 640px) 20vw, 100vw"
+                      src={
+                        announcement.background_url ??
+                        announcement.slide_urls[0]
+                      }
+                      unoptimized
+                    />
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-col items-start p-5 sm:p-6">
+                  <p className="text-xs font-medium text-brand">
                     {formatAnnouncementDate(announcement.created_at)}
                   </p>
                   {announcement.categories.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {announcement.categories.map((category) => (
                         <span
-                          className={
-                            announcement.background_url
-                              ? "rounded-full border border-white/30 bg-black/20 px-3 py-1 text-[11px] font-medium text-white"
-                              : "rounded-full bg-brand/8 px-3 py-1 text-[11px] font-medium text-brand"
-                          }
+                          className="rounded-full bg-brand/8 px-3 py-1 text-[11px] font-medium text-brand"
                           key={category}
                         >
                           {getAnnouncementCategoryLabel(category)}
@@ -252,43 +247,21 @@ export default async function Home() {
                       ))}
                     </div>
                   )}
-                </div>
-                <h3
-                  className={
-                    announcement.background_url
-                      ? "mt-3 text-lg font-semibold tracking-tight text-white"
-                      : "mt-3 text-lg font-semibold tracking-tight"
-                  }
-                >
-                  {announcement.title}
-                </h3>
-                {announcement.body && (
-                  <p
-                    className={
-                      announcement.background_url
-                        ? "mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-white/85"
-                        : "mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground"
-                    }
-                  >
-                    {announcement.body}
-                  </p>
-                )}
-                {announcement.slide_urls[0] && (
-                  <div className="relative mt-5 aspect-video overflow-hidden rounded-xl bg-black/10">
-                    <Image
-                      alt={`${announcement.title} presentation preview`}
-                      className="object-contain"
-                      fill
-                      sizes="(min-width: 1024px) 25rem, (min-width: 640px) 50vw, 100vw"
-                      src={announcement.slide_urls[0]}
-                      unoptimized
+                  <h3 className="mt-3 text-lg font-semibold tracking-tight">
+                    {announcement.title}
+                  </h3>
+                  {announcement.body && (
+                    <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                      {announcement.body}
+                    </p>
+                  )}
+                  <div className="mt-auto pt-5">
+                    <AnnouncementViewer
+                      announcement={announcement}
+                      hasBackground={Boolean(announcement.background_url)}
                     />
                   </div>
-                )}
-                <AnnouncementViewer
-                  announcement={announcement}
-                  hasBackground={Boolean(announcement.background_url)}
-                />
+                </div>
               </article>
             ))}
           </div>
