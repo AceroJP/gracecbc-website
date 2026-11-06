@@ -4,18 +4,28 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
+  const tokenHash = request.nextUrl.searchParams.get("token_hash");
+  const verificationType = request.nextUrl.searchParams.get("type");
   const next = request.nextUrl.searchParams.get("next") ?? "/";
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
-  if (!code) {
+  if (!code && !(tokenHash && verificationType === "email")) {
     return NextResponse.redirect(new URL("/devotionals/apply?error=verification", request.url));
   }
 
   const supabase = await createClient();
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  const verificationResult = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+      token_hash: tokenHash!,
+        type: "email",
+      });
 
-  if (exchangeError) {
-    console.error("Unable to complete contributor email verification.", exchangeError);
+  if (verificationResult.error) {
+    console.error(
+      "Unable to complete contributor email verification.",
+      verificationResult.error,
+    );
     return NextResponse.redirect(new URL("/devotionals/apply?error=verification", request.url));
   }
 

@@ -31,11 +31,12 @@ export type ContributorApplicationState = {
   message?: string;
 };
 
-function genericError(): ContributorApplicationState {
+function contributorApplicationError(
+  message = "We couldn’t submit your application. Please try again.",
+): ContributorApplicationState {
   return {
     status: "error",
-    message:
-      "We couldn’t submit your application. Check the details and try again.",
+    message,
   };
 }
 
@@ -68,7 +69,7 @@ export async function submitContributorApplication(
   const host = requestHeaders.get("host");
   if (!host) {
     console.error("Contributor application is missing the request host.");
-    return genericError();
+    return contributorApplicationError();
   }
 
   try {
@@ -88,7 +89,9 @@ export async function submitContributorApplication(
     }
 
     if (existingUsername) {
-      return genericError();
+      return contributorApplicationError(
+        "That username is already in use. Please choose another username.",
+      );
     }
 
     const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY } =
@@ -111,8 +114,43 @@ export async function submitContributorApplication(
       options: { emailRedirectTo: redirectTo },
     });
 
-    if (signUpError || !data.user) {
-      return genericError();
+    if (signUpError) {
+      console.error("Contributor Auth signup failed.", {
+        message: signUpError.message,
+        status: signUpError.status,
+        code: signUpError.code,
+      });
+      const normalizedMessage = signUpError.message.toLowerCase();
+      if (
+        normalizedMessage.includes("already registered") ||
+        normalizedMessage.includes("already been registered") ||
+        normalizedMessage.includes("user already exists")
+      ) {
+        return contributorApplicationError(
+          "This email is already registered. Verify it or use a different email address.",
+        );
+      }
+      if (
+        normalizedMessage.includes("smtp") ||
+        normalizedMessage.includes("email") ||
+        normalizedMessage.includes("rate limit")
+      ) {
+        return contributorApplicationError(
+          "The verification email could not be sent. Please try again later or contact the church administrator.",
+        );
+      }
+      return contributorApplicationError(
+        "We couldn’t create your account. Please check your details and try again.",
+      );
+    }
+    if (!data.user) {
+      console.error("Contributor Auth signup returned no user.");
+      return contributorApplicationError();
+    }
+    if (data.user.identities && data.user.identities.length === 0) {
+      return contributorApplicationError(
+        "This email is already registered. Verify it or use a different email address.",
+      );
     }
 
     const { error: contributorError } = await privilegedClient
@@ -128,7 +166,7 @@ export async function submitContributorApplication(
       });
 
     if (contributorError) {
-      await authClient.auth.admin.deleteUser(data.user.id);
+      await privilegedClient.auth.admin.deleteUser(data.user.id);
       throw new Error("Unable to create contributor profile.", {
         cause: contributorError,
       });
@@ -167,6 +205,6 @@ export async function submitContributorApplication(
     };
   } catch (error) {
     console.error("Contributor application failed.", error);
-    return genericError();
+    return contributorApplicationError();
   }
 }
