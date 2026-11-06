@@ -45,6 +45,12 @@ export function PublicHeader() {
               {item.label}
             </Link>
           ))}
+          <Link
+            className="text-sm font-semibold text-brand transition-colors hover:text-foreground"
+            href="/login"
+          >
+            Login
+          </Link>
         </nav>
 
         <button
@@ -79,6 +85,13 @@ export function PublicHeader() {
               {item.label}
             </Link>
           ))}
+          <Link
+            className="block border-b border-border/70 py-3 text-sm font-semibold text-brand"
+            href="/login"
+            onClick={() => setMenuOpen(false)}
+          >
+            Login
+          </Link>
         </nav>
       )}
     </header>

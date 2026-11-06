@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export function PublicFooter() {
   return (
     <footer className="bg-brand text-white">
@@ -13,12 +11,6 @@ export function PublicFooter() {
             provided here when available.
           </p>
         </div>
-        <Link
-          className="w-fit text-sm font-medium text-white/80 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
-          href="/login"
-        >
-          Admin sign in
-        </Link>
         <p className="border-t border-white/15 pt-5 text-xs text-white/50 md:col-span-2">
           Church content and contact information are placeholders until
           confirmed.

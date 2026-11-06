@@ -15,10 +15,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{ children: ReactNode }>) {
+  modal,
+}: Readonly<{ children: ReactNode; modal?: ReactNode }>) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable, geistMono.variable)}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {modal}
+      </body>
     </html>
   );
 }
