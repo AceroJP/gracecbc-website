@@ -63,7 +63,7 @@ export async function signInAction(
   }
 
   redirect(
-    isAdmin ? "/admin/dashboard" : "/",
+    isAdmin ? "/admin/dashboard?notice=signed-in" : "/",
   );
 }
 

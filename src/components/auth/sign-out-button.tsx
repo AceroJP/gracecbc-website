@@ -64,7 +64,7 @@ export function SignOutButton({
         return;
       }
 
-      router.replace("/");
+      router.replace("/?notice=signed-out");
       router.refresh();
     } catch (error) {
       Swal.close();
