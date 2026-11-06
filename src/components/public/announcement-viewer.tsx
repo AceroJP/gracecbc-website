@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import type { AnnouncementPresentationType } from "@/lib/announcements";
 import type { ReactNode } from "react";
+
+const AnnouncementPdfViewer = dynamic(
+  () => import("./announcement-pdf-viewer"),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="p-4 text-center text-sm text-muted-foreground">
+        Loading PDF viewer…
+      </p>
+    ),
+  },
+);
 
 export type PublicAnnouncement = {
   id: string;
@@ -73,22 +86,10 @@ export function AnnouncementViewer({
         {announcement.presentation_type === "pdf" &&
         announcement.presentation_url ? (
           <div className="grid gap-3">
-            <iframe
-              className="h-[70dvh] w-full rounded-lg border border-border bg-muted sm:h-[min(72dvh,800px)]"
-              src={`${announcement.presentation_url}#toolbar=1&navpanes=0&view=FitH`}
-              title={`${announcement.title} presentation`}
+            <AnnouncementPdfViewer
+              title={announcement.title}
+              url={announcement.presentation_url}
             />
-            <a
-              className="hidden w-fit text-sm font-medium text-primary underline-offset-4 hover:underline md:block"
-              href={announcement.presentation_url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Open PDF presentation in a new tab
-              {announcement.presentation_name
-                ? ` (${announcement.presentation_name})`
-                : ""}
-            </a>
           </div>
         ) : announcement.presentation_type === "powerpoint" &&
           announcement.presentation_url ? (
