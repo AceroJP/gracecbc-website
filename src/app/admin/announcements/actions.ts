@@ -4,12 +4,15 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/auth/server";
+import { getCloudConvertApiKey } from "@/lib/env.server";
 import {
   announcementBucket,
   announcementMaxCategories,
   announcementImageMaxBytes,
   announcementMaxImages,
+  announcementPowerPointMaxBytes,
   announcementPdfMaxBytes,
+  announcementPowerPointMimeTypes,
   getAnnouncementFileExtension,
   getAnnouncementCategoryLabel,
 } from "@/lib/announcements";
@@ -29,6 +32,33 @@ const uploadRequestSchema = z.object({
 const fileReferenceSchema = z.object({
   path: z.string().min(1).max(500),
   name: z.string().min(1).max(255),
+});
+const cloudConvertJobSchema = z.object({
+  data: z.object({
+    id: z.string().min(1),
+    status: z.enum(["waiting", "processing", "finished", "error"]),
+    tasks: z
+      .array(
+        z.object({
+          name: z.string().optional(),
+          status: z.enum(["waiting", "processing", "finished", "error"]).optional(),
+          message: z.string().nullable().optional(),
+          result: z
+            .object({
+              files: z.array(
+                z.object({
+                  filename: z.string(),
+                  url: z.url(),
+                  size: z.number().optional(),
+                }),
+              ),
+            })
+            .nullable()
+            .optional(),
+        }),
+      )
+      .optional(),
+  }),
 });
 const presentationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("pdf"), file: fileReferenceSchema }),
@@ -58,7 +88,7 @@ const contentSchema = z.object({
 
 function isValidAnnouncementPath(path: string, announcementId: string) {
   return new RegExp(
-    `^${announcementId}/[0-9a-f-]{36}\\.(pdf|jpg|jpeg|png|webp)$`,
+    `^${announcementId}/[0-9a-f-]{36}\\.(pdf|ppt|pptx|jpg|jpeg|png|webp)$`,
     "i",
   ).test(path);
 }
@@ -131,22 +161,25 @@ export async function beginAnnouncementUploadsAction(
   ) {
     return {
       status: "error" as const,
-      message: `PDF presentations must be under ${announcementPdfMaxBytes / (1024 * 1024)} MB. Each slide image must be PNG, JPG, or WebP under ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
+      message: `PDF files must be under ${announcementPdfMaxBytes / (1024 * 1024)} MB and PowerPoint files under ${announcementPowerPointMaxBytes / (1024 * 1024)} MB. Each slide image must be PNG, JPG, or WebP under ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
     };
   }
 
   const isPdf = files.length === 1 && files[0].contentType === "application/pdf";
+  const isPowerPoint =
+    files.length === 1 &&
+    Object.keys(announcementPowerPointMimeTypes).includes(files[0].contentType);
   const isImages = files.every(({ contentType }) =>
     contentType.startsWith("image/"),
   );
   if (
-    (purpose === "presentation" && !isPdf && !isImages) ||
+    (purpose === "presentation" && !isPdf && !isPowerPoint && !isImages) ||
     (purpose === "background" &&
       (files.length !== 1 || !files[0].contentType.startsWith("image/")))
   ) {
     return {
       status: "error" as const,
-      message: "Upload one PDF presentation or a set of slide images, not both.",
+      message: "Upload one PDF or PowerPoint file, or a set of slide images.",
     };
   }
 
@@ -186,6 +219,260 @@ export async function beginAnnouncementUploadsAction(
   }
 
   return { status: "success" as const, uploads };
+}
+
+export async function convertAnnouncementPowerPointAction(
+  announcementId: string,
+  file: z.input<typeof fileReferenceSchema>,
+) {
+  await requireAdminUser();
+  const id = uuidSchema.safeParse(announcementId);
+  const parsedFile = fileReferenceSchema.safeParse(file);
+  if (
+    !id.success ||
+    !parsedFile.success ||
+    !new RegExp(`^${id.data}/[0-9a-f-]{36}\\.(ppt|pptx)$`, "i").test(
+      parsedFile.data.path,
+    )
+  ) {
+    return {
+      status: "error" as const,
+      message: "Invalid PowerPoint file for conversion.",
+    };
+  }
+
+  const supabase = await createClient();
+  let apiKey: string | null = null;
+  let jobId: string | null = null;
+  let convertedPath: string | null = null;
+  let convertedFile: { path: string; name: string } | null = null;
+  let conversionError: string | null = null;
+  let jobCleanupWarning = false;
+
+  try {
+    apiKey = getCloudConvertApiKey();
+    const { data: signedFile, error: signedUrlError } = await supabase.storage
+      .from(announcementBucket)
+      .createSignedUrl(parsedFile.data.path, 10 * 60);
+    if (signedUrlError) {
+      throw new Error("We couldn’t prepare the PowerPoint for conversion.");
+    }
+
+    const extension = parsedFile.data.path.toLowerCase().endsWith(".pptx")
+      ? "pptx"
+      : "ppt";
+    const createResponse = await fetch("https://api.cloudconvert.com/v2/jobs", {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tasks: {
+          "import-presentation": {
+            operation: "import/url",
+            url: signedFile.signedUrl,
+            filename: parsedFile.data.name,
+          },
+          "convert-presentation": {
+            operation: "convert",
+            input: "import-presentation",
+            input_format: extension,
+            output_format: "pdf",
+            filename: `${parsedFile.data.name.replace(/\.(ppt|pptx)$/i, "")}.pdf`,
+            timeout: 40,
+          },
+          "export-presentation": {
+            operation: "export/url",
+            input: "convert-presentation",
+          },
+        },
+        tag: `announcement-${id.data}`,
+      }),
+    });
+    if (!createResponse.ok) {
+      console.error(
+        "CloudConvert job creation failed.",
+        createResponse.status,
+      );
+      throw new Error(
+        "PowerPoint conversion could not be started. Please try again.",
+      );
+    }
+
+    const createPayload: unknown = await createResponse.json();
+    const createdJob = cloudConvertJobSchema.safeParse(createPayload);
+    if (!createdJob.success) {
+      throw new Error("PowerPoint conversion returned an invalid response.");
+    }
+    jobId = createdJob.data.data.id;
+
+    const deadline = Date.now() + 40_000;
+    let job = createdJob.data.data;
+    while (job.status === "waiting" || job.status === "processing") {
+      if (Date.now() >= deadline) {
+        throw new Error(
+          "PowerPoint conversion is taking longer than expected. Please try again.",
+        );
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const statusResponse = await fetch(
+        `https://api.cloudconvert.com/v2/jobs/${encodeURIComponent(jobId)}?include=tasks`,
+        {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${apiKey}` },
+        },
+      );
+      if (!statusResponse.ok) {
+        console.error(
+          "Unable to check CloudConvert job status.",
+          statusResponse.status,
+        );
+        throw new Error("Unable to check PowerPoint conversion status.");
+      }
+
+      const statusPayload: unknown = await statusResponse.json();
+      const statusJob = cloudConvertJobSchema.safeParse(statusPayload);
+      if (!statusJob.success) {
+        throw new Error("PowerPoint conversion returned an invalid status.");
+      }
+      job = statusJob.data.data;
+    }
+
+    if (job.status !== "finished") {
+      throw new Error(
+        "PowerPoint conversion failed. Check that the file opens correctly, then try again.",
+      );
+    }
+
+    const output = job.tasks
+      ?.find((task) => task.name === "export-presentation")
+      ?.result?.files[0];
+    if (!output) {
+      throw new Error("PowerPoint conversion did not produce a PDF.");
+    }
+
+    const outputUrl = new URL(output.url);
+    if (
+      outputUrl.protocol !== "https:" ||
+      outputUrl.hostname !== "storage.cloudconvert.com"
+    ) {
+      throw new Error("PowerPoint conversion returned an invalid download URL.");
+    }
+    if (output.size !== undefined && output.size > announcementPdfMaxBytes) {
+      throw new Error(
+        `The converted PDF exceeds the ${announcementPdfMaxBytes / (1024 * 1024)} MB limit.`,
+      );
+    }
+
+    const pdfResponse = await fetch(outputUrl, { cache: "no-store" });
+    if (!pdfResponse.ok || !pdfResponse.body) {
+      throw new Error("Unable to download the converted PDF.");
+    }
+
+    const reader = pdfResponse.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      totalBytes += value.byteLength;
+      if (totalBytes > announcementPdfMaxBytes) {
+        await reader.cancel();
+        throw new Error(
+          `The converted PDF exceeds the ${announcementPdfMaxBytes / (1024 * 1024)} MB limit.`,
+        );
+      }
+      chunks.push(value);
+    }
+
+    const pdfBytes = Buffer.concat(chunks);
+    if (
+      pdfBytes.length === 0 ||
+      pdfBytes.subarray(0, 5).toString("ascii") !== "%PDF-"
+    ) {
+      throw new Error("The converted file is not a valid PDF.");
+    }
+
+    const pdfName = safeFileName(
+      `${parsedFile.data.name.replace(/\.(ppt|pptx)$/i, "")}.pdf`,
+    );
+    const pdfPath = `${id.data}/${randomUUID()}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from(announcementBucket)
+      .upload(pdfPath, pdfBytes, {
+        cacheControl: "3600",
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    if (uploadError) {
+      console.error("Unable to store converted announcement PDF.", uploadError);
+      throw new Error("Unable to save the converted PDF. Please try again.");
+    }
+    convertedPath = pdfPath;
+    convertedFile = { path: pdfPath, name: pdfName };
+  } catch (error) {
+    console.error("Announcement PowerPoint conversion failed.", error);
+    conversionError =
+      error instanceof Error
+        ? error.message
+        : "PowerPoint conversion failed. Please try again.";
+  } finally {
+    if (jobId && apiKey) {
+      try {
+        const deleteResponse = await fetch(
+          `https://api.cloudconvert.com/v2/jobs/${encodeURIComponent(jobId)}`,
+          {
+            method: "DELETE",
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${apiKey}` },
+          },
+        );
+        if (!deleteResponse.ok) {
+          jobCleanupWarning = true;
+          console.error(
+            "Unable to delete temporary CloudConvert job.",
+            deleteResponse.status,
+          );
+        }
+      } catch (error) {
+        jobCleanupWarning = true;
+        console.error("Unable to delete temporary CloudConvert job.", error);
+      }
+    }
+  }
+
+  if (conversionError) {
+    if (convertedPath) {
+      const { error } = await supabase.storage
+        .from(announcementBucket)
+        .remove([convertedPath]);
+      if (error) {
+        console.error("Unable to clean up converted announcement PDF.", error);
+      }
+    }
+    return {
+      status: "error" as const,
+      message: conversionError,
+    };
+  }
+
+  if (convertedFile) {
+    return {
+      status: "success" as const,
+      file: convertedFile,
+      cleanupWarning: jobCleanupWarning,
+    };
+  }
+
+  return {
+    status: "error" as const,
+    message: "PowerPoint conversion failed. Please try again.",
+  };
 }
 
 export async function cleanupAnnouncementUploadsAction(

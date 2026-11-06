@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +28,25 @@ const registrationCapacitySchema = z.union([
   z.string().regex(/^[1-9]\d{0,5}$/),
 ]);
 
-function parseEvent(formData: FormData) {
+type EventActionResult =
+  | { status: "success"; message: string }
+  | { status: "error"; message: string };
+
+function parseEvent(
+  formData: FormData,
+):
+  | {
+      status: "success";
+      event: Omit<z.infer<typeof eventSchema>, "end_date" | "ends_at"> & {
+        end_date: string | null;
+        ends_at: string | null;
+        registration_enabled: boolean;
+        registration_fields: z.infer<typeof registrationFieldsSchema>;
+        registration_deadline: string | null;
+        registration_capacity: number | null;
+      };
+    }
+  | { status: "error"; message: string } {
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
@@ -41,20 +58,31 @@ function parseEvent(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/admin/events?error=invalid");
+    return {
+      status: "error",
+      message: "Check the event details and try again.",
+    };
   }
 
   const rawFields = formData.get("registration_fields");
   let decodedFields: unknown;
 
   if (typeof rawFields !== "string") {
-    redirect("/admin/events?error=registration-form");
+    return {
+      status: "error",
+      message:
+        "Check the registration form. Enabled forms need at least one valid field, and dropdowns need at least two unique options.",
+    };
   }
 
   try {
     decodedFields = JSON.parse(rawFields);
   } catch {
-    redirect("/admin/events?error=registration-form");
+    return {
+      status: "error",
+      message:
+        "Check the registration form. Enabled forms need at least one valid field, and dropdowns need at least two unique options.",
+    };
   }
 
   const fields = registrationFieldsSchema.safeParse(decodedFields);
@@ -72,17 +100,24 @@ function parseEvent(formData: FormData) {
     !capacity.success ||
     (registrationEnabled && fields.data.length === 0)
   ) {
-    redirect("/admin/events?error=registration-form");
+    return {
+      status: "error",
+      message:
+        "Check the registration form. Enabled forms need at least one valid field, and dropdowns need at least two unique options.",
+    };
   }
 
   return {
-    ...parsed.data,
-    end_date: parsed.data.end_date || null,
-    ends_at: parsed.data.ends_at || null,
-    registration_enabled: registrationEnabled,
-    registration_fields: fields.data,
-    registration_deadline: deadline.data || null,
-    registration_capacity: capacity.data ? Number(capacity.data) : null,
+    status: "success",
+    event: {
+      ...parsed.data,
+      end_date: parsed.data.end_date || null,
+      ends_at: parsed.data.ends_at || null,
+      registration_enabled: registrationEnabled,
+      registration_fields: fields.data,
+      registration_deadline: deadline.data || null,
+      registration_capacity: capacity.data ? Number(capacity.data) : null,
+    },
   };
 }
 
@@ -90,11 +125,16 @@ function reportDatabaseError(message: string, error: unknown): never {
   throw new Error(message, { cause: error });
 }
 
-export async function createEventAction(formData: FormData) {
+export async function createEventAction(
+  formData: FormData,
+): Promise<EventActionResult> {
   await requireAdminUser();
-  const event = parseEvent(formData);
+  const parsed = parseEvent(formData);
+  if (parsed.status === "error") {
+    return parsed;
+  }
   const supabase = await createClient();
-  const { error } = await supabase.from("events").insert(event);
+  const { error } = await supabase.from("events").insert(parsed.event);
 
   if (error) {
     reportDatabaseError("Unable to create the event.", error);
@@ -102,22 +142,30 @@ export async function createEventAction(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/admin/events");
-  redirect("/admin/events?notice=created");
+  return {
+    status: "success",
+    message: "The event is now published on the public website.",
+  };
 }
 
-export async function updateEventAction(formData: FormData) {
+export async function updateEventAction(
+  formData: FormData,
+): Promise<EventActionResult> {
   await requireAdminUser();
   const id = eventIdSchema.safeParse(formData.get("id"));
 
   if (!id.success) {
-    redirect("/admin/events?error=invalid");
+    return { status: "error", message: "Check the event details and try again." };
   }
 
-  const event = parseEvent(formData);
+  const parsed = parseEvent(formData);
+  if (parsed.status === "error") {
+    return parsed;
+  }
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .update({ ...event, updated_at: new Date().toISOString() })
+    .update({ ...parsed.event, updated_at: new Date().toISOString() })
     .eq("id", id.data)
     .select("id")
     .maybeSingle();
@@ -127,12 +175,18 @@ export async function updateEventAction(formData: FormData) {
   }
 
   if (!data) {
-    redirect("/admin/events?error=not-found");
+    return {
+      status: "error",
+      message: "That event could not be found. Refresh the list and try again.",
+    };
   }
 
   revalidatePath("/");
   revalidatePath("/admin/events");
-  redirect("/admin/events?notice=updated");
+  return {
+    status: "success",
+    message: "Event changes are published on the public website.",
+  };
 }
 
 async function archiveEvent(

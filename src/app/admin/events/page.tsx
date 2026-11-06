@@ -10,19 +10,12 @@ import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
 import { RegistrationFieldsEditor } from "@/components/admin/registration-fields-editor";
 import { EventActions } from "@/components/admin/event-actions";
-import {
-  createEventAction,
-  updateEventAction,
-} from "./actions";
+import { EventSaveForm } from "@/components/admin/event-save-form";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 import {
   Field,
   FieldDescription,
@@ -44,22 +37,6 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Events",
-};
-
-type EventsPageProps = {
-  searchParams: Promise<{ error?: string; notice?: string }>;
-};
-
-const notices: Record<string, string> = {
-  created: "Event saved and published on the public website.",
-  updated: "Event changes saved and published.",
-};
-
-const errors: Record<string, string> = {
-  invalid: "Check the event details and try again.",
-  "not-found": "That event could not be found. Refresh the list and try again.",
-  "registration-form":
-    "Check the registration form. Enabled forms need at least one valid field, and dropdowns need at least two unique options.",
 };
 
 function EventFields({
@@ -217,13 +194,9 @@ function EditEventDialog({ event }: { event: ChurchEvent }) {
             published immediately.
           </DialogDescription>
         </DialogHeader>
-        <form action={updateEventAction} className="flex flex-col gap-5">
-          <input name="id" type="hidden" value={event.id} />
+        <EventSaveForm eventId={event.id}>
           <EventFields event={event} prefix={`event-${event.id}`} />
-          <Button className="w-fit" type="submit">
-            Save and publish changes
-          </Button>
-        </form>
+        </EventSaveForm>
       </DialogContent>
     </Dialog>
   );
@@ -258,66 +231,90 @@ function EventList({
   }
 
   return (
-    <div className="grid gap-4">
-      {events.map((event) => (
-        <Card key={event.id}>
-          <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
-            <div className="grid gap-2">
-              <CardTitle>{event.title}</CardTitle>
-              <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarDays aria-hidden="true" className="size-4" />
-                  {formatEventDateRange(event.event_date, event.end_date)} ·{" "}
-                  {formatEventTime(event.starts_at)}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin aria-hidden="true" className="size-4" />
-                  {event.location}
-                </span>
-                <span>
+    <Card>
+      <CardContent className="overflow-x-auto p-0">
+        <table className="w-full min-w-[850px] text-left text-sm">
+          <thead className="bg-muted/50 text-xs text-muted-foreground">
+            <tr>
+              <th className="px-5 py-3 font-medium" scope="col">Event</th>
+              <th className="px-5 py-3 font-medium" scope="col">Date &amp; time</th>
+              <th className="px-5 py-3 font-medium" scope="col">Location</th>
+              <th className="px-5 py-3 font-medium" scope="col">Registrations</th>
+              <th className="px-5 py-3 font-medium" scope="col">Status</th>
+              <th className="px-5 py-3 text-right font-medium" scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {events.map((event) => (
+              <tr className="align-top" key={event.id}>
+                <th className="max-w-64 px-5 py-4 font-medium" scope="row">
+                  <p>{event.title}</p>
+                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-muted-foreground">
+                    {event.description}
+                  </p>
+                </th>
+                <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
+                    {formatEventDateRange(event.event_date, event.end_date)}
+                  </span>
+                  <p className="mt-1 pl-5 text-xs">
+                    {formatEventTime(event.starts_at)}
+                    {event.ends_at ? ` – ${formatEventTime(event.ends_at)}` : ""}
+                  </p>
+                </td>
+                <td className="max-w-52 px-5 py-4 text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                    {event.location}
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">
                   {event.registrationCount}{" "}
                   {event.registrationCount === 1 ? "participant" : "participants"}
-                </span>
-                <span>
-                  {event.registration_enabled
-                    ? "Registration enabled"
-                    : "Registration off"}
-                </span>
-              </CardDescription>
-            </div>
-            <EventActions
-              archived={archived}
-              eventId={event.id}
-              eventTitle={event.title}
-              registrationCount={event.registrationCount}
-            />
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                href={`/admin/events/${event.id}/registrations`}
-              >
-                View registrations
-              </Link>
-              {!archived && <EditEventDialog event={event} />}
-            </div>
-            <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
-              {event.description}
-            </p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+                </td>
+                <td className="whitespace-nowrap px-5 py-4">
+                  {archived ? (
+                    <span className="text-muted-foreground">Archived</span>
+                  ) : event.registration_enabled ? (
+                    <span className="text-primary">Registration open</span>
+                  ) : (
+                    <span className="text-muted-foreground">Registration off</span>
+                  )}
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      render={
+                        <Link href={`/admin/events/${event.id}/registrations`} />
+                      }
+                      size="sm"
+                      variant="outline"
+                    >
+                      Registrations
+                    </Button>
+                    {!archived && <EditEventDialog event={event} />}
+                    <EventActions
+                      archived={archived}
+                      eventId={event.id}
+                      eventTitle={event.title}
+                      registrationCount={event.registrationCount}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
   );
 }
 
-export default async function EventsPage({ searchParams }: EventsPageProps) {
-  const [allEvents, params] = await Promise.all([getEvents(), searchParams]);
+export default async function EventsPage() {
+  const allEvents = await getEvents();
   const events = allEvents.filter((event) => !event.archived_at);
   const archivedEvents = allEvents.filter((event) => event.archived_at);
-  const notice = params.notice ? notices[params.notice] : undefined;
-  const error = params.error ? errors[params.error] : undefined;
 
   return (
     <>
@@ -337,44 +334,24 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             publishes changes immediately.
           </p>
         </div>
-        <a
-          className="inline-flex min-h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          href="#create-event"
-        >
-          <Plus aria-hidden="true" className="size-4" />
-          Add event
-        </a>
+        <Dialog>
+          <DialogTrigger render={<Button className="w-fit" type="button" />}>
+            <Plus data-icon="inline-start" />
+            Add event
+          </DialogTrigger>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Publish an event</DialogTitle>
+              <DialogDescription>
+                New events appear on the public homepage as soon as they are saved.
+              </DialogDescription>
+            </DialogHeader>
+            <EventSaveForm>
+              <EventFields prefix="new-event" />
+            </EventSaveForm>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {notice && (
-        <p
-          className="mt-6 rounded-xl border border-border bg-muted px-4 py-3 text-sm"
-          role="status"
-        >
-          {notice}
-        </p>
-      )}
-      {error && (
-        <SweetAlertError message={error} title="Unable to save event" />
-      )}
-
-      <Card className="mt-7" id="create-event">
-        <CardHeader>
-          <CardTitle>Add an event</CardTitle>
-          <CardDescription>
-            New events appear on the public homepage as soon as they are saved.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={createEventAction} className="flex flex-col gap-5">
-            <EventFields prefix="new-event" />
-            <Button className="w-fit" type="submit">
-              <Plus aria-hidden="true" data-icon="inline-start" />
-              Save and publish event
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
 
       <section aria-labelledby="events-list-heading" className="mt-10">
         <div className="mb-4 flex items-end justify-between gap-4">

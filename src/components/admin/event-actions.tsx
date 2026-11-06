@@ -10,6 +10,7 @@ import {
   deleteEventAction,
   restoreEventAction,
 } from "@/app/admin/events/actions";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 
 export function EventActions({
   eventId,
@@ -30,6 +31,7 @@ export function EventActions({
     successText: (result: string) => string,
   ) {
     setBusy(true);
+    showLoadingAlert("Updating event", "Please wait while we save this change...");
     try {
       const result = await action();
       if (result === "not-found") {

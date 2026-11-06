@@ -6,6 +6,9 @@ import { signInAction, type SignInState } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SweetAlertError } from "@/components/ui/sweet-alert-error";
+import { showLoadingAlert } from "@/lib/sweet-alert";
+import { useEffect } from "react";
+import Swal from "sweetalert2";
 
 const initialState: SignInState = {};
 
@@ -14,6 +17,14 @@ export function LoginForm() {
     signInAction,
     initialState,
   );
+
+  useEffect(() => {
+    if (pending) {
+      showLoadingAlert("Signing in", "Verifying your administrator account...");
+    } else if (Swal.isLoading()) {
+      Swal.close();
+    }
+  }, [pending]);
 
   return (
     <>

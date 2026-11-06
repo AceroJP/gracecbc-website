@@ -7,10 +7,12 @@ import {
   MapPin,
   PanelsTopLeft,
 } from "lucide-react";
+import Image from "next/image";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import {
   announcementBucket,
   formatAnnouncementDate,
+  getAnnouncementPresentationType,
   getAnnouncementCategoryLabel,
 } from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
@@ -107,8 +109,15 @@ export default async function Home() {
       id: announcement.id,
       title: announcement.title,
       body: announcement.body,
-      pdf_name: announcement.pdf_name,
-      pdf_url: announcement.pdf_path
+      presentation_name: announcement.pdf_name,
+      presentation_type:
+        announcement.pdf_path || announcement.slide_paths.length > 0
+          ? getAnnouncementPresentationType(
+              announcement.pdf_path,
+              announcement.slide_paths,
+            )
+          : null,
+      presentation_url: announcement.pdf_path
         ? storage.getPublicUrl(announcement.pdf_path).data.publicUrl
         : null,
       slide_names: announcement.slide_names,
@@ -263,6 +272,18 @@ export default async function Home() {
                   >
                     {announcement.body}
                   </p>
+                )}
+                {announcement.slide_urls[0] && (
+                  <div className="relative mt-5 aspect-video overflow-hidden rounded-xl bg-black/10">
+                    <Image
+                      alt={`${announcement.title} presentation preview`}
+                      className="object-contain"
+                      fill
+                      sizes="(min-width: 1024px) 25rem, (min-width: 640px) 50vw, 100vw"
+                      src={announcement.slide_urls[0]}
+                      unoptimized
+                    />
+                  </div>
                 )}
                 <AnnouncementViewer
                   announcement={announcement}

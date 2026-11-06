@@ -41,6 +41,7 @@ import {
   isRegistrationUploadContentType,
 } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/client";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 
 const initialState: RegistrationManagementState = { status: "idle" };
 
@@ -83,6 +84,10 @@ export function RegistrationActions({
 
   async function handleUpdate(formData: FormData) {
     setSaving(true);
+    showLoadingAlert(
+      "Saving registration changes",
+      "Please wait while we update the participant’s information...",
+    );
     try {
       const result = await updateRegistrationAction(
         eventId,
@@ -164,9 +169,16 @@ export function RegistrationActions({
     }
 
     setUploadingFiles(true);
+    showLoadingAlert(
+      "Uploading replacement files",
+      `Preparing ${pendingFiles.length} ${pendingFiles.length === 1 ? "file" : "files"}...`,
+    );
     try {
       const supabase = createClient();
-      for (const { fieldId, file } of pendingFiles) {
+      for (const [index, { fieldId, file }] of pendingFiles.entries()) {
+        Swal.update({
+          text: `Uploading file ${index + 1} of ${pendingFiles.length}: ${file.name}`,
+        });
         if (!isRegistrationUploadContentType(file.type)) {
           await Swal.fire({
             icon: "error",
@@ -266,6 +278,10 @@ export function RegistrationActions({
     }
 
     setDeleting(true);
+    showLoadingAlert(
+      "Deleting registration",
+      "Please wait while we remove this participant’s registration...",
+    );
     try {
       const result = await deleteRegistrationAction(eventId, registrationId);
       if (result.status === "error") {

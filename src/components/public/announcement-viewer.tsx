@@ -12,13 +12,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { AnnouncementPresentationType } from "@/lib/announcements";
 
 export type PublicAnnouncement = {
   id: string;
   title: string;
   body: string;
-  pdf_name: string | null;
-  pdf_url: string | null;
+  presentation_name: string | null;
+  presentation_type: AnnouncementPresentationType | null;
+  presentation_url: string | null;
   slide_names: string[];
   slide_urls: string[];
   categories: string[];
@@ -68,21 +70,43 @@ export function AnnouncementViewer({
           )}
         </DialogHeader>
 
-        {announcement.pdf_url ? (
+        {announcement.presentation_type === "pdf" &&
+        announcement.presentation_url ? (
           <div className="grid gap-3">
             <iframe
               className="h-[min(72dvh,800px)] w-full rounded-lg border border-border bg-muted"
-              src={`${announcement.pdf_url}#toolbar=1&navpanes=0&view=FitH`}
+              src={`${announcement.presentation_url}#toolbar=1&navpanes=0&view=FitH`}
               title={`${announcement.title} presentation`}
             />
             <a
               className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline"
-              href={announcement.pdf_url}
+              href={announcement.presentation_url}
               rel="noreferrer"
               target="_blank"
             >
               Open PDF presentation in a new tab
-              {announcement.pdf_name ? ` (${announcement.pdf_name})` : ""}
+              {announcement.presentation_name
+                ? ` (${announcement.presentation_name})`
+                : ""}
+            </a>
+          </div>
+        ) : announcement.presentation_type === "powerpoint" &&
+          announcement.presentation_url ? (
+          <div className="grid gap-3 rounded-lg border border-border bg-muted/40 p-6">
+            <p className="text-sm text-muted-foreground">
+              PowerPoint files can be opened or downloaded on your device.
+            </p>
+            <a
+              className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline"
+              download={announcement.presentation_name ?? true}
+              href={announcement.presentation_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Download PowerPoint
+              {announcement.presentation_name
+                ? ` (${announcement.presentation_name})`
+                : ""}
             </a>
           </div>
         ) : totalSlides > 0 ? (

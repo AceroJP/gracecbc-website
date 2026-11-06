@@ -45,6 +45,7 @@ import {
   type RegistrationField,
 } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/client";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 import { cn } from "cn";
 
 declare global {
@@ -277,15 +278,37 @@ function RegistrationFormContent({
   }
 
   useEffect(() => {
-    if (
-      state.status === "error" &&
-      previousState.current !== state
-    ) {
+    if (pending) {
+      showLoadingAlert(
+        "Submitting registration",
+        "Please wait while we save your event registration...",
+      );
+      return;
+    }
+
+    if (Swal.isLoading()) {
+      Swal.close();
+    }
+
+    if (state.status === "error" && previousState.current !== state) {
       setToken("");
       setResetKey((current) => current + 1);
+      void Swal.fire({
+        icon: "error",
+        title: "Registration failed",
+        text: state.message,
+        confirmButtonText: "Okay",
+      });
+    } else if (state.status === "success" && previousState.current !== state) {
+      void Swal.fire({
+        icon: "success",
+        title: "Registration received",
+        text: "Thank you. Your event registration has been recorded.",
+        confirmButtonText: "Okay",
+      });
     }
     previousState.current = state;
-  }, [state]);
+  }, [pending, state]);
 
   async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     const pendingFiles = fields.flatMap((field) => {
@@ -339,6 +362,10 @@ function RegistrationFormContent({
     }
 
     setUploadingFiles(true);
+    showLoadingAlert(
+      "Uploading registration files",
+      `Preparing ${pendingFiles.length} ${pendingFiles.length === 1 ? "file" : "files"}...`,
+    );
     try {
       const response = await beginRegistrationUploadsAction({
         eventId,
@@ -371,7 +398,7 @@ function RegistrationFormContent({
       }
 
       const supabase = createClient();
-      for (const upload of response.uploads) {
+      for (const [index, upload] of response.uploads.entries()) {
         const selected = pendingFiles.find(
           ({ fieldId }) => fieldId === upload.fieldId,
         );
@@ -379,6 +406,9 @@ function RegistrationFormContent({
           throw new Error("An uploaded file no longer matches the form.");
         }
 
+        Swal.update({
+          text: `Uploading file ${index + 1} of ${response.uploads.length}: ${selected.file.name}`,
+        });
         const { error } = await supabase.storage
           .from("event-registration-files")
           .uploadToSignedUrl(upload.path, upload.token, selected.file, {
@@ -464,10 +494,6 @@ function RegistrationFormContent({
 
   return (
     <>
-      <SweetAlertError
-        message={state.status === "error" ? state.message : null}
-        title="Registration failed"
-      />
       <form
         action={formAction}
         className="flex flex-col gap-5"

@@ -5,6 +5,7 @@ import { announcementBucket } from "@/lib/announcements";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Announcements",
@@ -25,7 +26,7 @@ export default async function AnnouncementsPage() {
     const storage = supabase.storage.from(announcementBucket);
     return {
       ...announcement,
-      pdf_url: announcement.pdf_path
+      presentation_url: announcement.pdf_path
         ? storage.getPublicUrl(announcement.pdf_path).data.publicUrl
         : null,
       slide_urls: announcement.slide_paths.map(
@@ -51,7 +52,7 @@ export default async function AnnouncementsPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           Publish Sunday services, prayer meetings, and other church updates.
-          Present them as a PDF or as an image slideshow.
+          Choose a PDF, PowerPoint file converted to PDF, or image slideshow.
         </p>
       </div>
       <div className="mt-8">

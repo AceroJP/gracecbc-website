@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import Swal from "sweetalert2";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 import type { VariantProps } from "class-variance-authority";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -45,6 +46,10 @@ export function SignOutButton({
     }
 
     setPending(true);
+    showLoadingAlert(
+      "Signing out",
+      "Please wait while we sign you out of the admin workspace...",
+    );
     try {
       const result = await signOutAction();
       if (result.error) {
