@@ -74,25 +74,10 @@ export function AnnouncementViewer({
         announcement.presentation_url ? (
           <div className="grid gap-3">
             <iframe
-              className="hidden h-[min(72dvh,800px)] w-full rounded-lg border border-border bg-muted md:block"
+              className="h-[70dvh] w-full rounded-lg border border-border bg-muted sm:h-[min(72dvh,800px)]"
               src={`${announcement.presentation_url}#toolbar=1&navpanes=0&view=FitH`}
               title={`${announcement.title} presentation`}
             />
-            <Button
-              className="w-full md:hidden"
-              render={
-                <a
-                  href={announcement.presentation_url}
-                  rel="noreferrer"
-                  target="_blank"
-                />
-              }
-              nativeButton={false}
-              type="button"
-              variant="outline"
-            >
-              Open PDF to view all pages
-            </Button>
             <a
               className="hidden w-fit text-sm font-medium text-primary underline-offset-4 hover:underline md:block"
               href={announcement.presentation_url}
