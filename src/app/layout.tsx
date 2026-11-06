@@ -18,7 +18,11 @@ export default function RootLayout({
   modal,
 }: Readonly<{ children: ReactNode; modal?: ReactNode }>) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable, geistMono.variable)}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={cn("font-sans", geist.variable, geistMono.variable)}
+    >
       <body>
         {children}
         {modal}

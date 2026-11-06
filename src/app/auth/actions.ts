@@ -42,7 +42,29 @@ export async function signInAction(
     };
   }
 
-  redirect("/admin/dashboard?notice=signed-in");
+  let isAdmin = false;
+
+  try {
+    const supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    if (result.error) {
+      console.error("Unable to verify signed-in user.", result.error);
+      return {
+        error: "We couldn’t verify your administrator account. Please try again.",
+      };
+    }
+
+    isAdmin = result.data.user?.app_metadata?.role === "admin";
+  } catch (error) {
+    console.error("Signed-in user verification failed.", error);
+    return {
+      error: "We couldn’t verify your administrator account. Please try again.",
+    };
+  }
+
+  redirect(
+    isAdmin ? "/admin/dashboard" : "/",
+  );
 }
 
 export async function signOutAction(): Promise<{ error?: string }> {

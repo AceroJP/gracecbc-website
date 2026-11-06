@@ -52,6 +52,8 @@ export function SignOutButton({
     );
     try {
       const result = await signOutAction();
+      Swal.close();
+
       if (result.error) {
         await Swal.fire({
           icon: "error",
@@ -62,9 +64,10 @@ export function SignOutButton({
         return;
       }
 
-      router.replace("/login?notice=signed-out");
+      router.replace("/");
       router.refresh();
     } catch (error) {
+      Swal.close();
       console.error("Sign-out request failed.", error);
       await Swal.fire({
         icon: "error",

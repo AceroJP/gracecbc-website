@@ -22,6 +22,15 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             });
           } catch (error) {
+            if (
+              error instanceof Error &&
+              error.message.includes(
+                "Cookies can only be modified in a Server Action or Route Handler",
+              )
+            ) {
+              return;
+            }
+
             console.error(
               "Unable to update Supabase auth cookies in this server context.",
               error,

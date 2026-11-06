@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 
 const navigation = [
   { label: "Events", href: "/#events" },
@@ -14,6 +14,15 @@ const navigation = [
 
 export function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  function handleMobileLoginClick(event: MouseEvent<HTMLAnchorElement>) {
+    setMenuOpen(false);
+
+    if (window.innerWidth < 640) {
+      event.preventDefault();
+      window.location.assign(new URL("/login", window.location.origin).toString());
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur">
@@ -48,6 +57,7 @@ export function PublicHeader() {
           <Link
             className="text-sm font-semibold text-brand transition-colors hover:text-foreground"
             href="/login"
+            prefetch={false}
           >
             Login
           </Link>
@@ -88,7 +98,8 @@ export function PublicHeader() {
           <Link
             className="block border-b border-border/70 py-3 text-sm font-semibold text-brand"
             href="/login"
-            onClick={() => setMenuOpen(false)}
+            onClick={handleMobileLoginClick}
+            prefetch={false}
           >
             Login
           </Link>

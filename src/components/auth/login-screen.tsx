@@ -86,13 +86,7 @@ export async function LoginScreen({
         />
       )}
       {modal ? (
-        <>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-32 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-brand/5 blur-3xl"
-          />
-          {panel}
-        </>
+        panel
       ) : (
         <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-warm px-4 py-12">
           <div
