@@ -48,7 +48,7 @@ const cloudConvertJobSchema = z.object({
               files: z.array(
                 z.object({
                   filename: z.string(),
-                  url: z.url(),
+                  url: z.url().optional(),
                   size: z.number().optional(),
                 }),
               ),
@@ -95,6 +95,18 @@ function isValidAnnouncementPath(path: string, announcementId: string) {
 
 function safeFileName(name: string) {
   return name.replace(/[^\w.-]/g, "_").slice(0, 255);
+}
+
+function isCloudConvertStorageUrl(url: URL) {
+  return (
+    url.protocol === "https:" &&
+    !url.username &&
+    !url.password &&
+    !url.port &&
+    /^(?:storage(?:-[a-z0-9-]+)?|[a-z0-9-]+\.storage)\.cloudconvert\.com$/i.test(
+      url.hostname,
+    )
+  );
 }
 
 function getPresentationValues(
@@ -251,12 +263,9 @@ export async function convertAnnouncementPowerPointAction(
 
   try {
     apiKey = getCloudConvertApiKey();
-    const { data: signedFile, error: signedUrlError } = await supabase.storage
+    const sourceUrl = supabase.storage
       .from(announcementBucket)
-      .createSignedUrl(parsedFile.data.path, 10 * 60);
-    if (signedUrlError) {
-      throw new Error("We couldn’t prepare the PowerPoint for conversion.");
-    }
+      .getPublicUrl(parsedFile.data.path).data.publicUrl;
 
     const extension = parsedFile.data.path.toLowerCase().endsWith(".pptx")
       ? "pptx"
@@ -272,7 +281,7 @@ export async function convertAnnouncementPowerPointAction(
         tasks: {
           "import-presentation": {
             operation: "import/url",
-            url: signedFile.signedUrl,
+            url: sourceUrl,
             filename: parsedFile.data.name,
           },
           "convert-presentation": {
@@ -349,16 +358,17 @@ export async function convertAnnouncementPowerPointAction(
 
     const output = job.tasks
       ?.find((task) => task.name === "export-presentation")
-      ?.result?.files[0];
-    if (!output) {
+      ?.result?.files.find((file) => file.url);
+    if (!output?.url) {
       throw new Error("PowerPoint conversion did not produce a PDF.");
     }
 
     const outputUrl = new URL(output.url);
-    if (
-      outputUrl.protocol !== "https:" ||
-      outputUrl.hostname !== "storage.cloudconvert.com"
-    ) {
+    if (!isCloudConvertStorageUrl(outputUrl)) {
+      console.error(
+        "CloudConvert returned an unexpected export hostname.",
+        outputUrl.hostname,
+      );
       throw new Error("PowerPoint conversion returned an invalid download URL.");
     }
     if (output.size !== undefined && output.size > announcementPdfMaxBytes) {
