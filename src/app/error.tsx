@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { SweetAlertError } from "@/components/ui/sweet-alert-error";
 
 export default function ErrorPage({
@@ -39,9 +39,9 @@ export default function ErrorPage({
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button onClick={reset}>Try again</Button>
-          <Button render={<Link href="/" />} variant="outline">
+          <Link className={buttonVariants({ variant: "outline" })} href="/">
             Go to homepage
-          </Button>
+          </Link>
         </div>
       </section>
     </main>

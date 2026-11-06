@@ -8,7 +8,7 @@ const navigation = [
   { label: "Events", href: "/#events" },
   { label: "Schedules", href: "/#schedules" },
   { label: "Livestream", href: "/#livestream" },
-  { label: "Devotionals", href: "/#devotionals" },
+  { label: "Devotionals", href: "/devotionals" },
   { label: "Contact", href: "/#contact" },
 ];
 

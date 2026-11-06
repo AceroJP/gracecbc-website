@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function NotFoundPage() {
   return (
@@ -15,9 +15,9 @@ export default function NotFoundPage() {
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           The page you’re looking for doesn’t exist or may have moved.
         </p>
-        <Button className="mt-6" render={<Link href="/" />}>
+        <Link className={buttonVariants({ className: "mt-6" })} href="/">
           Go to homepage
-        </Button>
+        </Link>
       </section>
     </main>
   );

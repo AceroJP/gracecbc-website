@@ -15,7 +15,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
@@ -284,15 +284,12 @@ function EventList({
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      render={
-                        <Link href={`/admin/events/${event.id}/registrations`} />
-                      }
-                      size="sm"
-                      variant="outline"
+                    <Link
+                      className={buttonVariants({ size: "sm", variant: "outline" })}
+                      href={`/admin/events/${event.id}/registrations`}
                     >
                       Registrations
-                    </Button>
+                    </Link>
                     {!archived && <EditEventDialog event={event} />}
                     <EventActions
                       archived={archived}

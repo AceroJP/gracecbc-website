@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -198,15 +198,13 @@ export default async function EventRegistrationsPage({
           </p>
         </div>
         {registrations.length > 0 && (
-          <Button
-            render={
-              <a href={`/admin/events/${event.id}/registrations/export`} />
-            }
-            variant="outline"
+          <a
+            className={buttonVariants({ variant: "outline" })}
+            href={`/admin/events/${event.id}/registrations/export`}
           >
             <Download aria-hidden="true" data-icon="inline-start" />
             Export CSV
-          </Button>
+          </a>
         )}
       </div>
 
@@ -308,28 +306,20 @@ export default async function EventRegistrationsPage({
           </p>
           <div className="flex gap-2">
             {currentPage > 1 && (
-              <Button
-                render={
-                  <Link
-                    href={`/admin/events/${eventId}/registrations?page=${currentPage - 1}`}
-                  />
-                }
-                variant="outline"
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                href={`/admin/events/${eventId}/registrations?page=${currentPage - 1}`}
               >
                 Previous
-              </Button>
+              </Link>
             )}
             {currentPage < totalPages && (
-              <Button
-                render={
-                  <Link
-                    href={`/admin/events/${eventId}/registrations?page=${currentPage + 1}`}
-                  />
-                }
-                variant="outline"
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                href={`/admin/events/${eventId}/registrations?page=${currentPage + 1}`}
               >
                 Next
-              </Button>
+              </Link>
             )}
           </div>
         </nav>
