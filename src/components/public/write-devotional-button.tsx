@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Swal from "sweetalert2";
 import { verifyContributorCredentials, type ContributorCredentialState } from "@/app/(public)/devotionals/credential-actions";
 import { DevotionalSubmissionForm } from "@/components/public/devotional-submission-form";
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,36 @@ export function WriteDevotionalButton() {
               onSubmit={(event) => {
                 event.preventDefault();
                 const formData = new FormData(event.currentTarget);
+                void Swal.fire({
+                  title: "Verifying credentials",
+                  text: "Please wait...",
+                  allowOutsideClick: false,
+                  showConfirmButton: false,
+                  didOpen: () => Swal.showLoading(),
+                });
                 startTransition(async () => {
-                  const result = await verifyContributorCredentials(state, formData);
-                  setState(result);
-                  if (result.status === "success") {
-                    setWriting(true);
+                  try {
+                    const result = await verifyContributorCredentials(state, formData);
+                    setState(result);
+                    Swal.close();
+                    await Swal.fire({
+                      icon: result.status === "success" ? "success" : "error",
+                      title: result.status === "success" ? "Access granted" : "Verification failed",
+                      text: result.message ?? "Please try again.",
+                      confirmButtonText: "Okay",
+                    });
+                    if (result.status === "success") {
+                      setWriting(true);
+                    }
+                  } catch (error) {
+                    console.error("Contributor credential verification failed.", error);
+                    Swal.close();
+                    await Swal.fire({
+                      icon: "error",
+                      title: "Verification failed",
+                      text: "Please try again.",
+                      confirmButtonText: "Okay",
+                    });
                   }
                 });
               }}

@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { useEffect } from "react";
 import type React from "react";
+import Swal from "sweetalert2";
 import {
   submitDevotional,
   type DevotionalSubmissionState,
@@ -22,6 +24,27 @@ export function DevotionalSubmissionForm({
     submitDevotional,
     initialState,
   );
+
+  useEffect(() => {
+    if (pending) {
+      void Swal.fire({
+        title: "Submitting devotional",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      return;
+    }
+    if (state.status === "idle") return;
+    Swal.close();
+    void Swal.fire({
+      icon: state.status === "success" ? "success" : "error",
+      title: state.status === "success" ? "Devotional submitted" : "Submission failed",
+      text: state.message,
+      confirmButtonText: "Okay",
+    });
+  }, [pending, state.message, state.status]);
 
   if (state.status === "success") {
     return (

@@ -2,6 +2,7 @@
 
 import { Heart } from "lucide-react";
 import { useState, useSyncExternalStore, useTransition } from "react";
+import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import { toggleDevotionalReaction } from "@/app/(public)/devotionals/reaction-actions";
 
@@ -82,20 +83,53 @@ export function DevotionalReactionButton({
   function toggle() {
     if (!visitorId) return;
     const action = liked ? "unlike" : "like";
+    void Swal.fire({
+      title: liked ? "Removing your reaction" : "Saving your reaction",
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
     startTransition(async () => {
-      const result = await toggleDevotionalReaction({
-        action,
-        devotionalId,
-        visitorId,
-      });
-      if (result.status === "success" && result.liked !== undefined && result.reactionCount !== undefined) {
-        setCount(result.reactionCount);
-        if (result.liked) {
-          window.localStorage.setItem(`gcbc_devotional_liked_${devotionalId}`, "1");
+      try {
+        const result = await toggleDevotionalReaction({
+          action,
+          devotionalId,
+          visitorId,
+        });
+        Swal.close();
+        if (result.status === "success" && result.liked !== undefined && result.reactionCount !== undefined) {
+          setCount(result.reactionCount);
+          if (result.liked) {
+            window.localStorage.setItem(`gcbc_devotional_liked_${devotionalId}`, "1");
+          } else {
+            window.localStorage.removeItem(`gcbc_devotional_liked_${devotionalId}`);
+          }
+          window.dispatchEvent(new Event(`gcbc-devotional-liked-${devotionalId}`));
+          await Swal.fire({
+            icon: "success",
+            title: result.liked ? "Liked" : "Reaction removed",
+            text: result.liked
+              ? "Your reaction was added."
+              : "Your reaction was removed.",
+            confirmButtonText: "Okay",
+          });
         } else {
-          window.localStorage.removeItem(`gcbc_devotional_liked_${devotionalId}`);
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to update reaction",
+            text: result.message ?? "Please try again.",
+            confirmButtonText: "Okay",
+          });
         }
-        window.dispatchEvent(new Event(`gcbc-devotional-liked-${devotionalId}`));
+      } catch (error) {
+        console.error("Devotional reaction request failed.", error);
+        Swal.close();
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to update reaction",
+          text: "Please try again.",
+          confirmButtonText: "Okay",
+        });
       }
     });
   }

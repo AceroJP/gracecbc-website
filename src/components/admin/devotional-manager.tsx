@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import type React from "react";
 import { BookOpenText, Check, Eye, X } from "lucide-react";
+import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   moderateDevotionalAction,
   reviewContributorApplicationAction,
 } from "@/app/admin/devotionals/actions";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 
 type AdminAction = (
   formData: FormData,
@@ -49,11 +51,35 @@ export function DevotionalManager({
 
   function submit(action: AdminAction, form: FormData) {
     startTransition(async () => {
-      const result = await action(form);
-      if (result.status === "success") {
-        router.refresh();
-      } else {
-        window.alert(result.message);
+      showLoadingAlert("Saving moderation change", "Please wait...");
+      try {
+        const result = await action(form);
+        Swal.close();
+        if (result.status === "success") {
+          router.refresh();
+          await Swal.fire({
+            icon: "success",
+            title: "Action completed",
+            text: result.message,
+            confirmButtonText: "Okay",
+          });
+        } else {
+          await Swal.fire({
+            icon: "error",
+            title: "Action failed",
+            text: result.message,
+            confirmButtonText: "Okay",
+          });
+        }
+      } catch (error) {
+        console.error("Devotional moderation request failed.", error);
+        Swal.close();
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to complete action",
+          text: "Please try again.",
+          confirmButtonText: "Okay",
+        });
       }
     });
   }
@@ -140,6 +166,9 @@ export function DevotionalManager({
                   {application.status === "rejected" && (
                     <ApplicationButton action="reactivate" id={application.id} pending={pending} onSubmit={submit} />
                   )}
+                  {!application.email_verified_at && (
+                    <ApplicationButton action="delete_unverified" id={application.id} pending={pending} onSubmit={submit} />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -172,12 +201,15 @@ function ActionButton({
     <Button
       disabled={pending}
       onClick={() => {
-        if (action === "delete" && !window.confirm("Delete this devotional permanently?")) return;
-        const form = new FormData();
-        form.set("id", id);
-        form.set("action", action);
-        form.set("reason", "");
-        onSubmit(moderateDevotionalAction, form);
+        void confirmAndSubmit(
+          action === "delete"
+            ? "Delete this devotional permanently?"
+            : `${action[0].toUpperCase()}${action.slice(1)} this devotional?`,
+          action,
+          id,
+          moderateDevotionalAction,
+          onSubmit,
+        );
       }}
       size="sm"
       type="button"
@@ -189,13 +221,38 @@ function ActionButton({
   );
 }
 
+async function confirmAndSubmit(
+  text: string,
+  action: string,
+  id: string,
+  handler: AdminAction,
+  onSubmit: (action: AdminAction, form: FormData) => void,
+) {
+  const confirmation = await Swal.fire({
+    icon: action.includes("delete") ? "warning" : "question",
+    title: "Confirm action",
+    text,
+    showCancelButton: true,
+    confirmButtonText: "Continue",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: action.includes("delete") ? "#b91c1c" : undefined,
+    reverseButtons: true,
+  });
+  if (!confirmation.isConfirmed) return;
+  const form = new FormData();
+  form.set("id", id);
+  form.set("action", action);
+  form.set("reason", "");
+  onSubmit(handler, form);
+}
+
 function ApplicationButton({
   action,
   id,
   pending,
   onSubmit,
 }: {
-  action: "approve" | "reject" | "suspend" | "reactivate";
+  action: "approve" | "reject" | "suspend" | "reactivate" | "delete_unverified";
   id: string;
   pending: boolean;
   onSubmit: (action: AdminAction, form: FormData) => void;
@@ -204,17 +261,27 @@ function ApplicationButton({
     <Button
       disabled={pending}
       onClick={() => {
-        const form = new FormData();
-        form.set("id", id);
-        form.set("action", action);
-        form.set("reason", "");
-        onSubmit(reviewContributorApplicationAction, form);
+        void confirmAndSubmit(
+          action === "delete_unverified"
+            ? "Delete this unverified applicant and their account permanently?"
+            : `${action[0].toUpperCase()}${action.slice(1)} this contributor application?`,
+          action,
+          id,
+          reviewContributorApplicationAction,
+          onSubmit,
+        );
       }}
       size="sm"
       type="button"
-      variant={action === "approve" || action === "reactivate" ? "default" : "outline"}
+      variant={
+        action === "approve" || action === "reactivate"
+          ? "default"
+          : action === "delete_unverified"
+            ? "destructive"
+            : "outline"
+      }
     >
-      {action}
+      {action === "delete_unverified" ? "Delete" : action}
     </Button>
   );
 }

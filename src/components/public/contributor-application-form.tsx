@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { useEffect } from "react";
 import type React from "react";
+import Swal from "sweetalert2";
 import { submitContributorApplication, type ContributorApplicationState } from "@/app/(public)/devotionals/apply/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +16,27 @@ export function ContributorApplicationForm() {
     submitContributorApplication,
     initialState,
   );
+
+  useEffect(() => {
+    if (pending) {
+      void Swal.fire({
+        title: "Submitting application",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      return;
+    }
+    if (state.status === "idle") return;
+    Swal.close();
+    void Swal.fire({
+      icon: state.status === "success" ? "success" : "error",
+      title: state.status === "success" ? "Application submitted" : "Application failed",
+      text: state.message,
+      confirmButtonText: "Okay",
+    });
+  }, [pending, state.message, state.status]);
 
   return (
     <form action={formAction} className="mt-10 space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">

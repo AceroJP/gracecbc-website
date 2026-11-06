@@ -13,7 +13,7 @@ const devotionalActionSchema = z.object({
 });
 const applicationActionSchema = z.object({
   id: z.uuid(),
-  action: z.enum(["approve", "reject", "suspend", "reactivate"]),
+  action: z.enum(["approve", "reject", "suspend", "reactivate", "delete_unverified"]),
   reason: z.string().trim().max(2000),
 });
 
@@ -156,7 +156,7 @@ export async function reviewContributorApplicationAction(
   const client = createPrivilegedClient();
   const { data: application, error: applicationError } = await client
     .from("devotional_applications")
-    .select("id, contributor_id, status")
+    .select("id, contributor_id, status, devotional_contributors(auth_user_id, email_verified_at)")
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (applicationError) {
@@ -166,6 +166,63 @@ export async function reviewContributorApplicationAction(
   }
   if (!application) {
     return { status: "error", message: "That application no longer exists." };
+  }
+
+  if (parsed.data.action === "delete_unverified") {
+    const contributor = Array.isArray(application.devotional_contributors)
+      ? application.devotional_contributors[0]
+      : application.devotional_contributors;
+    if (!contributor?.auth_user_id || contributor.email_verified_at) {
+      return {
+        status: "error",
+        message: "Only applicants with an unverified email can be deleted.",
+      };
+    }
+
+    const { error: applicationDeleteError } = await client
+      .from("devotional_applications")
+      .delete()
+      .eq("id", parsed.data.id);
+    if (applicationDeleteError) {
+      throw new Error("Unable to delete contributor application.", {
+        cause: applicationDeleteError,
+      });
+    }
+
+    const { error: contributorDeleteError } = await client
+      .from("devotional_contributors")
+      .delete()
+      .eq("id", application.contributor_id);
+    if (contributorDeleteError) {
+      throw new Error("Unable to delete contributor profile.", {
+        cause: contributorDeleteError,
+      });
+    }
+
+    const { error: authDeleteError } = await client.auth.admin.deleteUser(
+      contributor.auth_user_id,
+    );
+    if (authDeleteError) {
+      throw new Error("Unable to delete unverified applicant account.", {
+        cause: authDeleteError,
+      });
+    }
+
+    await writeAudit(
+      client,
+      admin.id,
+      "delete",
+      "contributor_application",
+      parsed.data.id,
+      application.status,
+      null,
+      { reason: parsed.data.reason, email_verified: "false" },
+    );
+    revalidatePath("/admin/devotionals");
+    return {
+      status: "success",
+      message: "The unverified applicant was deleted.",
+    };
   }
 
   const contributorStatus =
