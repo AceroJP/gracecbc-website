@@ -19,8 +19,13 @@ export default async function AdminDevotionalsPage() {
       .from("devotionals")
       .select("id, title, bible_passage, message, status, is_featured, submitted_at, rejection_reason, contributor_id")
       .order("submitted_at", { ascending: false }),
-    client.from("devotional_contributors").select("id, full_name, username, email_verified_at"),
-    client.from("devotional_applications").select("id, contributor_id, status, submitted_at"),
+    client
+      .from("devotional_contributors")
+      .select("id, auth_user_id, full_name, username, status, email_verified_at"),
+    client
+      .from("devotional_applications")
+      .select("id, contributor_id, status, submitted_at")
+      .order("submitted_at", { ascending: false }),
   ]);
 
   if (devotionalsError || contributorsError || applicationsError) {
@@ -29,8 +34,19 @@ export default async function AdminDevotionalsPage() {
     });
   }
 
+  const contributorAccounts = await Promise.all(
+    contributors.map(async (contributor) => {
+      const { data, error } = await client.auth.admin.getUserById(
+        contributor.auth_user_id,
+      );
+      if (error || !data.user?.email) {
+        throw new Error("Unable to load contributor account email.", { cause: error });
+      }
+      return { ...contributor, email: data.user.email };
+    }),
+  );
   const contributorMap = new Map(
-    contributors.map((contributor) => [contributor.id, contributor]),
+    contributorAccounts.map((contributor) => [contributor.id, contributor]),
   );
   return (
     <>
@@ -45,19 +61,21 @@ export default async function AdminDevotionalsPage() {
       </div>
       <div className="mt-8">
         <DevotionalManager
-          applications={applications.map((application) => {
-            const contributor = contributorMap.get(application.contributor_id);
-            return {
-              ...application,
-              full_name: contributor?.full_name ?? "Unknown contributor",
-              username: contributor?.username ?? "unknown",
-              email_verified_at: contributor?.email_verified_at ?? null,
-            };
-          })}
           devotionals={devotionals.map((devotional) => ({
             ...devotional,
             author: contributorMap.get(devotional.contributor_id)?.full_name ?? "Unknown contributor",
           }))}
+          contributors={contributorAccounts}
+          applications={applications.map((application) => {
+            const contributor = contributorMap.get(application.contributor_id);
+            return {
+              id: application.id,
+              full_name: contributor?.full_name ?? "Unknown contributor",
+              username: contributor?.username ?? "unknown",
+              status: application.status,
+              email_verified_at: contributor?.email_verified_at ?? null,
+            };
+          })}
         />
       </div>
     </>

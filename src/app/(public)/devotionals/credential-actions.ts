@@ -19,6 +19,8 @@ export type ContributorCredentialState = {
 };
 
 const grantCookie = "gcbc_devotional_grant";
+const credentialHelpMessage =
+  "We couldn’t sign you in. Check your username and password, or ask the church administrator for help.";
 
 export async function verifyContributorCredentials(
   _previousState: ContributorCredentialState,
@@ -32,7 +34,7 @@ export async function verifyContributorCredentials(
   if (!parsed.success) {
     return {
       status: "error",
-      message: "Enter your username and password.",
+      message: "Please enter your username and password.",
     };
   }
 
@@ -87,7 +89,7 @@ export async function verifyContributorCredentials(
     if (!contributor) {
       return {
         status: "error",
-        message: "Unable to verify those credentials.",
+        message: credentialHelpMessage,
       };
     }
 
@@ -104,32 +106,61 @@ export async function verifyContributorCredentials(
         },
       },
     );
-    const { data: authUser } = await privilegedClient.auth.admin.getUserById(
+    const { data: authUser, error: authUserError } =
+      await privilegedClient.auth.admin.getUserById(
       contributor.auth_user_id,
     );
     const email = authUser.user?.email;
 
-    if (!email) {
+    if (authUserError || !email) {
+      console.error("Contributor Auth account could not be loaded.", {
+        contributorId: contributor.id,
+        authUserId: contributor.auth_user_id,
+        error: authUserError,
+      });
       return {
         status: "error",
-        message: "Unable to verify those credentials.",
+        message: credentialHelpMessage,
       };
     }
 
     const { error: signInError } = await authClient.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password: parsed.data.password,
     });
     await authClient.auth.signOut();
 
-    if (
-      signInError ||
-      !contributor.email_verified_at ||
-      contributor.status !== "approved"
-    ) {
+    if (signInError) {
+      console.error("Contributor password sign-in failed.", {
+        contributorId: contributor.id,
+        error: signInError,
+      });
       return {
         status: "error",
-        message: "Unable to verify those credentials.",
+        message: credentialHelpMessage,
+      };
+    }
+
+    if (!contributor.email_verified_at) {
+      console.warn("Contributor account has not verified its email.", {
+        contributorId: contributor.id,
+      });
+      return {
+        status: "error",
+        message:
+          "Your email is not verified yet. Please ask the church administrator for help.",
+      };
+    }
+
+    if (contributor.status !== "approved") {
+      console.warn("Contributor account is not approved for devotional writing.", {
+        contributorId: contributor.id,
+        status: contributor.status,
+      });
+      return {
+        status: "error",
+        message:
+          "Your account is not approved yet. Please ask the church administrator for help.",
       };
     }
 
@@ -168,7 +199,7 @@ export async function verifyContributorCredentials(
     console.error("Contributor credential verification failed.", error);
     return {
       status: "error",
-      message: "We couldn’t verify your credentials. Please try again.",
+      message: credentialHelpMessage,
     };
   }
 }

@@ -66,7 +66,7 @@ export function WriteDevotionalButton() {
                     Swal.close();
                     await Swal.fire({
                       icon: result.status === "success" ? "success" : "error",
-                      title: result.status === "success" ? "Access granted" : "Verification failed",
+                      title: result.status === "success" ? "Access granted" : "We couldn’t sign you in",
                       text: result.message ?? "Please try again.",
                       confirmButtonText: "Okay",
                     });
@@ -78,8 +78,8 @@ export function WriteDevotionalButton() {
                     Swal.close();
                     await Swal.fire({
                       icon: "error",
-                      title: "Verification failed",
-                      text: "Please try again.",
+                      title: "We couldn’t sign you in",
+                      text: "Please try again, or ask the church administrator for help.",
                       confirmButtonText: "Okay",
                     });
                   }

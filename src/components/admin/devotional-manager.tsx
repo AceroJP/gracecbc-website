@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   moderateDevotionalAction,
-  reviewContributorApplicationAction,
 } from "@/app/admin/devotionals/actions";
 import { showLoadingAlert } from "@/lib/sweet-alert";
+import { ContributorManager } from "@/components/admin/contributor-manager";
 
 type AdminAction = (
   formData: FormData,
@@ -29,22 +29,14 @@ type Devotional = {
   author: string;
 };
 
-type Application = {
-  id: string;
-  contributor_id: string;
-  full_name: string;
-  username: string;
-  status: string;
-  submitted_at: string;
-  email_verified_at: string | null;
-};
-
 export function DevotionalManager({
   devotionals,
+  contributors,
   applications,
 }: {
   devotionals: Devotional[];
-  applications: Application[];
+  contributors: React.ComponentProps<typeof ContributorManager>["contributors"];
+  applications: React.ComponentProps<typeof ContributorManager>["applications"];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -132,50 +124,10 @@ export function DevotionalManager({
           {devotionals.length === 0 && <EmptyState label="No devotional submissions yet." />}
         </div>
       </section>
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Contributor applications</h2>
-            <p className="text-sm text-muted-foreground">Approve verified applicants before they can submit.</p>
-          </div>
-          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-            {applications.length} total
-          </span>
-        </div>
-        <div className="grid gap-4">
-          {applications.map((application) => (
-            <Card key={application.id}>
-              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold">{application.full_name}</p>
-                  <p className="text-sm text-muted-foreground">@{application.username}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {application.email_verified_at ? "Email verified" : "Email not verified"} · {application.status.replace("_", " ")}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {application.status === "pending_admin_approval" && (
-                    <>
-                      <ApplicationButton action="approve" id={application.id} pending={pending} onSubmit={submit} />
-                      <ApplicationButton action="reject" id={application.id} pending={pending} onSubmit={submit} />
-                    </>
-                  )}
-                  {application.status === "approved" && (
-                    <ApplicationButton action="suspend" id={application.id} pending={pending} onSubmit={submit} />
-                  )}
-                  {application.status === "rejected" && (
-                    <ApplicationButton action="reactivate" id={application.id} pending={pending} onSubmit={submit} />
-                  )}
-                  {!application.email_verified_at && (
-                    <ApplicationButton action="delete_unverified" id={application.id} pending={pending} onSubmit={submit} />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {applications.length === 0 && <EmptyState label="No contributor applications yet." />}
-        </div>
-      </section>
+      <ContributorManager
+        applications={applications}
+        contributors={contributors}
+      />
     </div>
   );
 }
@@ -244,46 +196,6 @@ async function confirmAndSubmit(
   form.set("action", action);
   form.set("reason", "");
   onSubmit(handler, form);
-}
-
-function ApplicationButton({
-  action,
-  id,
-  pending,
-  onSubmit,
-}: {
-  action: "approve" | "reject" | "suspend" | "reactivate" | "delete_unverified";
-  id: string;
-  pending: boolean;
-  onSubmit: (action: AdminAction, form: FormData) => void;
-}) {
-  return (
-    <Button
-      disabled={pending}
-      onClick={() => {
-        void confirmAndSubmit(
-          action === "delete_unverified"
-            ? "Delete this unverified applicant and their account permanently?"
-            : `${action[0].toUpperCase()}${action.slice(1)} this contributor application?`,
-          action,
-          id,
-          reviewContributorApplicationAction,
-          onSubmit,
-        );
-      }}
-      size="sm"
-      type="button"
-      variant={
-        action === "approve" || action === "reactivate"
-          ? "default"
-          : action === "delete_unverified"
-            ? "destructive"
-            : "outline"
-      }
-    >
-      {action === "delete_unverified" ? "Delete" : action}
-    </Button>
-  );
 }
 
 function EmptyState({ label }: { label: string }) {

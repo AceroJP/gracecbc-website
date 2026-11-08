@@ -1,9 +1,14 @@
 "use server";
 
+import { createHmac } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { requireAdminUser } from "@/lib/auth/server";
 import { createPrivilegedClient } from "@/lib/supabase/admin";
+import { getSupabasePublicEnv } from "@/lib/env";
+import { getSupabaseSecretKey } from "@/lib/env.server";
 
 const devotionalActionSchema = z.object({
   id: z.uuid(),
@@ -16,6 +21,18 @@ const applicationActionSchema = z.object({
   action: z.enum(["approve", "reject", "suspend", "reactivate", "delete_unverified"]),
   reason: z.string().trim().max(2000),
 });
+const contributorUpdateSchema = z.object({
+  id: z.uuid(),
+  fullName: z.string().trim().min(1).max(160),
+  username: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$/),
+  email: z.email().trim().toLowerCase(),
+  status: z.enum(["approved", "suspended"]),
+});
+const contributorResetSchema = z.object({ id: z.uuid() });
+const resetLinkLifetimeSeconds = 60 * 60;
 
 type ActionResult = { status: "success" | "error"; message: string };
 
@@ -276,4 +293,169 @@ export async function reviewContributorApplicationAction(
   );
   revalidatePath("/admin/devotionals");
   return { status: "success", message: "Contributor application was reviewed." };
+}
+
+export async function updateContributorAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const parsed = contributorUpdateSchema.safeParse({
+    id: formData.get("id"),
+    fullName: formData.get("fullName"),
+    username: formData.get("username"),
+    email: formData.get("email"),
+    status: formData.get("status"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Enter a valid name, username, and email." };
+  }
+
+  const client = createPrivilegedClient();
+  const { data: contributor, error: contributorError } = await client
+    .from("devotional_contributors")
+    .select("id, auth_user_id, full_name, username, status")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (contributorError) {
+    throw new Error("Unable to load contributor.", { cause: contributorError });
+  }
+  if (!contributor) {
+    return { status: "error", message: "That contributor no longer exists." };
+  }
+
+  const { data: existingUsername, error: usernameError } = await client
+    .from("devotional_contributors")
+    .select("id")
+    .eq("normalized_username", parsed.data.username.toLowerCase())
+    .neq("id", parsed.data.id)
+    .maybeSingle();
+  if (usernameError) {
+    throw new Error("Unable to check contributor username.", { cause: usernameError });
+  }
+  if (existingUsername) {
+    return { status: "error", message: "That username is already in use." };
+  }
+
+  const { data: authUser, error: authLookupError } =
+    await client.auth.admin.getUserById(contributor.auth_user_id);
+  if (authLookupError || !authUser.user?.email) {
+    throw new Error("Unable to load contributor email.", { cause: authLookupError });
+  }
+  const previousEmail = authUser.user.email;
+  const emailChanged = previousEmail.toLowerCase() !== parsed.data.email;
+
+  if (emailChanged) {
+    const { error: authUpdateError } = await client.auth.admin.updateUserById(
+      contributor.auth_user_id,
+      { email: parsed.data.email, email_confirm: true },
+    );
+    if (authUpdateError) {
+      return {
+        status: "error",
+        message: "Unable to update the contributor email. It may already be in use.",
+      };
+    }
+  }
+
+  const { error: profileUpdateError } = await client
+    .from("devotional_contributors")
+    .update({
+      full_name: parsed.data.fullName,
+      username: parsed.data.username,
+      status: parsed.data.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.id);
+  if (profileUpdateError) {
+    if (emailChanged) {
+      await client.auth.admin.updateUserById(contributor.auth_user_id, {
+        email: previousEmail,
+        email_confirm: true,
+      });
+    }
+    throw new Error("Unable to update contributor profile.", {
+      cause: profileUpdateError,
+    });
+  }
+
+  await writeAudit(
+    client,
+    admin.id,
+    "update",
+    "contributor",
+    parsed.data.id,
+    contributor.status,
+    parsed.data.status,
+    { email_changed: String(emailChanged) },
+  );
+  revalidatePath("/admin/devotionals");
+  return { status: "success", message: "Contributor account details were updated." };
+}
+
+export async function sendContributorPasswordResetAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const parsed = contributorResetSchema.safeParse({ id: formData.get("id") });
+  if (!parsed.success) {
+    return { status: "error", message: "Invalid contributor reset request." };
+  }
+
+  const client = createPrivilegedClient();
+  const { data: contributor, error: contributorError } = await client
+    .from("devotional_contributors")
+    .select("id, auth_user_id")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (contributorError) {
+    throw new Error("Unable to load contributor.", { cause: contributorError });
+  }
+  if (!contributor) {
+    return { status: "error", message: "That contributor no longer exists." };
+  }
+
+  const { data: authUser, error: authLookupError } =
+    await client.auth.admin.getUserById(contributor.auth_user_id);
+  const email = authUser.user?.email;
+  if (authLookupError || !email) {
+    throw new Error("Unable to load contributor email.", { cause: authLookupError });
+  }
+
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
+  if (!host) {
+    throw new Error("Unable to determine the password reset URL.");
+  }
+  const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY } =
+    getSupabasePublicEnv();
+  const authClient = createSupabaseClient(
+    NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
+  );
+  const resetExpiresAt = Math.floor(Date.now() / 1000) + resetLinkLifetimeSeconds;
+  const resetSignature = createHmac("sha256", getSupabaseSecretKey())
+    .update(String(resetExpiresAt))
+    .digest("hex");
+  const redirectTo = `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${host}/auth/callback?next=/devotionals/reset-password&reset_expires=${resetExpiresAt}&reset_signature=${resetSignature}`;
+  const { error: resetError } = await authClient.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+  if (resetError) {
+    throw new Error("Unable to send contributor password reset email.", {
+      cause: resetError,
+    });
+  }
+
+  await writeAudit(
+    client,
+    admin.id,
+    "send_password_reset",
+    "contributor",
+    parsed.data.id,
+    null,
+    null,
+    { email },
+  );
+  return { status: "success", message: `A password reset email was sent to ${email}.` };
 }
