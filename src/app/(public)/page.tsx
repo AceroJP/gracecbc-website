@@ -1,14 +1,16 @@
 import {
-  ArrowUpRight,
   BookOpenText,
   CalendarDays,
   Clock3,
   Cross,
   Headphones,
+  ArrowUpRight,
+  Mail,
   MapPin,
-  PanelsTopLeft,
+  Phone,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import {
   announcementBucket,
@@ -19,63 +21,30 @@ import {
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import { createClient } from "@/lib/supabase/server";
+import { getPublishedLandingPage } from "@/lib/landing-page-server";
 import { RegistrationForm } from "@/components/public/registration-form";
 import {
   AnnouncementViewer,
   type PublicAnnouncement,
 } from "@/components/public/announcement-viewer";
 
-const websiteAreas = [
-  {
-    id: "schedules",
-    title: "Worship schedules",
-    description:
-      "Service times and schedule details will be added after they are confirmed.",
-    icon: Clock3,
-    label: "Details pending",
-  },
-  {
-    id: "livestream",
-    title: "YouTube livestreams",
-    description:
-      "Livestream information and links can be added here when they are available.",
-    icon: Headphones,
-    label: "Link pending",
-  },
-  {
-    id: "devotionals",
-    title: "Devotionals",
-    description:
-      "A place for devotional content, ready for church-approved materials.",
-    icon: BookOpenText,
-    label: "Content area",
-  },
-  {
-    id: "contact",
-    title: "Contact information",
-    description:
-      "Church contact details will appear here once they are provided.",
-    icon: MapPin,
-    label: "Details pending",
-  },
-  {
-    id: "landing-page",
-    title: "Landing page",
-    description:
-      "This welcome area is a placeholder for an approved church introduction.",
-    icon: PanelsTopLeft,
-    label: "Placeholder",
-  },
-];
-
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+type HomeProps = {
+  searchParams: Promise<{ show?: string }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
+  const [params, landingPage] = await Promise.all([
+    searchParams,
+    getPublishedLandingPage(),
+  ]);
   const turnstileSiteKey = getOptionalTurnstileSiteKey();
   const supabase = await createClient();
   const [
     { data: events, error: eventsError },
     { data: announcements, error: announcementsError },
+    { data: devotionals, count: devotionalCount, error: devotionalsError },
   ] = await Promise.all([
     supabase
       .from("events")
@@ -84,8 +53,7 @@ export default async function Home() {
       )
       .is("archived_at", null)
       .order("event_date", { ascending: true })
-      .order("starts_at", { ascending: true })
-      .limit(6),
+      .order("starts_at", { ascending: true }),
     supabase
       .from("announcements")
       .select(
@@ -93,6 +61,13 @@ export default async function Home() {
       )
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("devotionals")
+      .select("id, slug, title, bible_passage, published_at", { count: "exact" })
+      .eq("status", "published")
+      .order("is_featured", { ascending: false })
+      .order("published_at", { ascending: false })
+      .limit(landingPage.devotionals.count),
   ]);
 
   if (eventsError) {
@@ -102,6 +77,9 @@ export default async function Home() {
     throw new Error("Unable to load public announcements.", {
       cause: announcementsError,
     });
+  }
+  if (devotionalsError) {
+    throw new Error("Unable to load public devotionals.", { cause: devotionalsError });
   }
 
   const storage = supabase.storage.from(announcementBucket);
@@ -131,87 +109,221 @@ export default async function Home() {
         : null,
       created_at: announcement.created_at,
     }));
+  const sortedAnnouncements = [...publicAnnouncements].sort((a, b) => {
+    if (a.id === landingPage.announcements.pinnedId) return -1;
+    if (b.id === landingPage.announcements.pinnedId) return 1;
+    return 0;
+  });
+  const visibleAnnouncements =
+    params.show === "announcements"
+      ? sortedAnnouncements
+      : sortedAnnouncements.slice(0, landingPage.announcements.count);
+  const visibleEvents =
+    params.show === "events"
+      ? events
+      : events.slice(0, landingPage.events.count);
+  const publicDevotionals = devotionals ?? [];
+  const imageUrl = (path: string | null) =>
+    path
+      ? supabase.storage.from("landing-page-images").getPublicUrl(path).data.publicUrl
+      : null;
+  const heroImageUrl = imageUrl(landingPage.hero.image.path);
+  const welcomeImageUrl = imageUrl(landingPage.welcome.image.path);
+  const hasHero =
+    landingPage.visibility.hero &&
+    Boolean(
+      landingPage.hero.headline ||
+        landingPage.hero.subtext ||
+        heroImageUrl ||
+        landingPage.hero.buttons.length,
+    );
+  const hasWelcome =
+    landingPage.visibility.welcome &&
+    Boolean(landingPage.welcome.text || welcomeImageUrl);
+  const hasSchedule =
+    landingPage.visibility.schedule && landingPage.schedule.rows.length > 0;
+  const hasLivestream =
+    landingPage.visibility.livestream && Boolean(landingPage.livestream.url);
+  const hasAnnouncements =
+    landingPage.visibility.announcements && publicAnnouncements.length > 0;
+  const hasEvents = landingPage.visibility.events && events.length > 0;
+  const hasDevotionals =
+    landingPage.visibility.devotionals && publicDevotionals.length > 0;
+  const hasContact =
+    landingPage.visibility.contact &&
+    Boolean(
+      landingPage.contact.address ||
+        landingPage.contact.phone ||
+        landingPage.contact.email ||
+        landingPage.contact.facebookUrl ||
+        landingPage.contact.mapUrl,
+    );
 
   return (
-    <main>
-      <section
+    <main className="flex flex-col">
+      {hasHero && <section
         id="landing-page"
         className="relative isolate overflow-hidden bg-brand text-white"
+        style={{ order: landingPage.sectionOrder.indexOf("hero") }}
       >
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_15%,rgba(147,197,190,0.2),transparent_38%),linear-gradient(125deg,transparent_45%,rgba(10,31,38,0.32))]" />
-        <div className="mx-auto grid min-h-[580px] max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:grid-cols-[1.15fr_0.85fr] lg:px-12 lg:py-32">
+        <div className={`mx-auto grid min-h-[580px] max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:px-12 lg:py-32 ${heroImageUrl ? "lg:grid-cols-[1.15fr_0.85fr]" : ""}`}>
           <div className="max-w-2xl">
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium tracking-[0.16em] text-white/85 uppercase">
-              <span className="size-1.5 rounded-full bg-emerald-200" />
-              Welcome message placeholder
-            </p>
-            <h1 className="mt-8 text-5xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-              A place for your church story.
+            <h1 className="text-5xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
+              {landingPage.hero.headline}
             </h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-white/75 sm:text-lg sm:leading-8">
-              An approved introduction to Grace Christian Baptist Church will
-              appear here. This space is reserved for your welcome message.
-            </p>
-            <div className="mt-9 flex flex-wrap gap-3">
-              <a
-                className="inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-brand transition-colors hover:bg-white/85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-                href="#events"
-              >
-                See upcoming events
-                <ArrowUpRight aria-hidden="true" className="size-4" />
-              </a>
-              <a
-                className="inline-flex min-h-12 items-center rounded-full border border-white/35 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-                href="#announcements"
-              >
-                Latest announcements
-              </a>
-            </div>
+            {landingPage.hero.subtext && (
+              <p className="mt-6 max-w-xl text-base leading-7 text-white/75 sm:text-lg sm:leading-8">
+                {landingPage.hero.subtext}
+              </p>
+            )}
+            {landingPage.hero.buttons.length > 0 && (
+              <div className="mt-9 flex flex-wrap gap-3">
+              {landingPage.hero.buttons.map((button, index) => (
+                <Link
+                  className={
+                    index === 0
+                      ? "inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-brand transition-colors hover:bg-white/85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                      : "inline-flex min-h-12 items-center rounded-full border border-white/35 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                  }
+                  href={button.url}
+                  key={`${button.label}-${index}`}
+                >
+                  {button.label}
+                  {index === 0 && <ArrowUpRight aria-hidden="true" className="size-4" />}
+                </Link>
+              ))}
+              </div>
+            )}
           </div>
 
-          <div
-            aria-label="Church image placeholder"
-            className="relative hidden min-h-80 items-end overflow-hidden rounded-[2rem] border border-white/15 bg-white/5 p-8 shadow-2xl shadow-black/10 lg:flex"
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(155deg,rgba(255,255,255,0.08),transparent_50%),radial-gradient(ellipse_at_70%_30%,rgba(255,255,255,0.14),transparent_60%)]" />
-            <div className="relative rounded-2xl border border-white/15 bg-brand/45 px-5 py-4 backdrop-blur-sm">
-              <p className="text-xs font-medium tracking-[0.16em] text-white/65 uppercase">
-                Image placeholder
-              </p>
-              <p className="mt-1 text-sm text-white/90">
-                Add an approved church photo later
-              </p>
+          {heroImageUrl && (
+            <div className="relative hidden min-h-80 overflow-hidden rounded-[2rem] border border-white/15 bg-white/5 shadow-2xl shadow-black/10 lg:block">
+              <Image
+                alt={landingPage.hero.image.alt}
+                className="object-cover"
+                fill
+                sizes="(min-width: 1024px) 40vw, 100vw"
+                src={heroImageUrl}
+                unoptimized
+              />
             </div>
-          </div>
+          )}
         </div>
-      </section>
+      </section>}
 
-      <section
+      {hasWelcome && (
+        <section
+          aria-labelledby="welcome-heading"
+          className={`mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:px-10 lg:items-center lg:px-12 ${welcomeImageUrl ? "lg:grid-cols-2" : ""}`}
+          id="welcome"
+          style={{ order: landingPage.sectionOrder.indexOf("welcome") }}
+        >
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="welcome-heading">
+              Welcome
+            </h2>
+            {landingPage.welcome.text && (
+              <p className="mt-4 whitespace-pre-line text-base leading-7 text-muted-foreground">
+                {landingPage.welcome.text}
+              </p>
+            )}
+          </div>
+          {welcomeImageUrl && (
+            <div className="relative min-h-64 overflow-hidden rounded-[2rem] border border-border bg-card">
+              <Image
+                alt={landingPage.welcome.image.alt}
+                className="object-cover"
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                src={welcomeImageUrl}
+                unoptimized
+              />
+            </div>
+          )}
+        </section>
+      )}
+
+      {hasSchedule && (
+        <section
+          aria-labelledby="worship-schedule-heading"
+          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+          id="schedules"
+          style={{ order: landingPage.sectionOrder.indexOf("schedule") }}
+        >
+          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
+            Worship schedule
+          </h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {landingPage.schedule.rows.map((row) => (
+              <article className="rounded-2xl border border-border bg-card p-6" key={row.id}>
+                <p className="text-sm font-medium text-brand">{row.day}</p>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.serviceName}</h3>
+                <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock3 aria-hidden="true" className="size-4 shrink-0" />
+                  {row.time}
+                </p>
+                {row.note && (
+                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                    {row.note}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {hasLivestream && (
+        <section
+          aria-labelledby="livestream-heading"
+          className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10 lg:px-12"
+          id="livestream"
+          style={{ order: landingPage.sectionOrder.indexOf("livestream") }}
+        >
+          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                <Headphones aria-hidden="true" className="size-5" />
+              </span>
+              <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
+                {landingPage.livestream.label || "YouTube livestream"}
+              </h2>
+            </div>
+            <a
+              className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
+              href={landingPage.livestream.url}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Watch on YouTube
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </a>
+          </div>
+        </section>
+      )}
+
+      {hasAnnouncements && <section
         aria-labelledby="announcements-heading"
         className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
         id="announcements"
+        style={{ order: landingPage.sectionOrder.indexOf("announcements") }}
       >
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
-            Church updates
-          </p>
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
             id="announcements-heading"
           >
-            Announcements
+            {landingPage.announcements.title}
           </h2>
-          <p className="mt-3 text-base leading-7 text-muted-foreground">
-            Sunday service, prayer meeting, and other church announcements.
-          </p>
+          {landingPage.announcements.intro && (
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
+              {landingPage.announcements.intro}
+            </p>
+          )}
         </div>
-        {publicAnnouncements.length === 0 ? (
-          <p className="mt-8 rounded-2xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted-foreground">
-            No announcements have been posted yet. Please check back soon.
-          </p>
-        ) : (
           <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] items-stretch gap-6">
-            {publicAnnouncements.map((announcement) => (
+            {visibleAnnouncements.map((announcement) => (
               <AnnouncementViewer
                 announcement={announcement}
                 key={announcement.id}
@@ -285,36 +397,38 @@ export default async function Home() {
               </AnnouncementViewer>
             ))}
           </div>
+        {params.show !== "announcements" &&
+          publicAnnouncements.length > landingPage.announcements.count && (
+          <div className="mt-8 text-right">
+            <Link className="text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4" href="/?show=announcements#announcements">
+              View all
+            </Link>
+          </div>
         )}
-      </section>
+      </section>}
 
-      <section
+      {hasEvents && <section
         aria-labelledby="upcoming-events-heading"
         className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
         id="events"
+        style={{ order: landingPage.sectionOrder.indexOf("events") }}
       >
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
-            Church life
-          </p>
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
             id="upcoming-events-heading"
           >
-            Events
+            {landingPage.events.title}
           </h2>
-          <p className="mt-3 text-base leading-7 text-muted-foreground">
-            See what is happening at Grace Christian Baptist Church.
-          </p>
+          {landingPage.events.intro && (
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
+              {landingPage.events.intro}
+            </p>
+          )}
         </div>
 
-        {events.length === 0 ? (
-          <p className="mt-8 rounded-2xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted-foreground">
-            No events have been posted yet. Please check back soon.
-          </p>
-        ) : (
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
+            {visibleEvents.map((event) => (
               <article
                 className="rounded-2xl border border-border bg-card p-6"
                 key={event.id}
@@ -365,70 +479,114 @@ export default async function Home() {
               </article>
             ))}
           </div>
-        )}
-      </section>
-
-      <section
-        id="website-areas"
-        className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-28 lg:px-12"
-      >
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
-            Public website
-          </p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Everything visitors need, in one welcoming place.
-          </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Schedules, devotionals, and other church information will be added
-            as approved details become available.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {websiteAreas.map(({ id, title, description, icon: Icon, label }) => (
-            <article
-              className="group rounded-2xl border border-border bg-card p-6 transition-colors hover:border-brand/25 hover:bg-brand/[0.025]"
-              id={id === "landing-page" ? undefined : id}
-              key={id}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <span className="flex size-11 items-center justify-center rounded-xl bg-brand/8 text-brand">
-                  <Icon aria-hidden="true" className="size-5" />
-                </span>
-                <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                  {label}
-                </span>
-              </div>
-              <h3 className="mt-6 text-lg font-semibold tracking-tight">
-                {title}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {description}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-border bg-warm">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 sm:px-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:px-12 lg:py-20">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-brand uppercase">
-              Your next step
-            </p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-balance">
-              Help us make this site yours.
-            </h2>
+        {params.show !== "events" && events.length > landingPage.events.count && (
+          <div className="mt-8 text-right">
+            <Link className="text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4" href="/?show=events#events">
+              View all
+            </Link>
           </div>
-          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-            Church-approved messages, schedules, photos, and contact details can
-            replace these placeholders as they become available. Nothing on
-            this foundation assumes service times, locations, or other church
-            information.
-          </p>
-        </div>
-      </section>
+        )}
+      </section>}
+
+      {hasDevotionals && (
+        <section
+          aria-labelledby="devotionals-heading"
+          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+          id="devotionals"
+          style={{ order: landingPage.sectionOrder.indexOf("devotionals") }}
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="devotionals-heading">
+                Devotionals
+              </h2>
+            </div>
+            <Link
+              className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+              href="/devotionals"
+            >
+              View devotionals
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </Link>
+          </div>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {publicDevotionals.map((devotional) => (
+              <article className="rounded-2xl border border-border bg-card p-6" key={devotional.id}>
+                <div className="flex size-10 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                  <BookOpenText aria-hidden="true" className="size-5" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+                  {devotional.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {devotional.bible_passage}
+                </p>
+                <Link
+                  className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  href={`/devotionals/${devotional.slug}`}
+                >
+                  Read devotional
+                  <ArrowUpRight aria-hidden="true" className="size-4" />
+                </Link>
+              </article>
+            ))}
+          </div>
+          {(devotionalCount ?? 0) > publicDevotionals.length && (
+            <p className="mt-6 text-right">
+              <Link className="text-sm font-semibold text-brand underline-offset-4 hover:underline" href="/devotionals">
+                View all devotionals
+              </Link>
+            </p>
+          )}
+        </section>
+      )}
+
+      {hasContact && (
+        <section
+          aria-labelledby="contact-heading"
+          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+          id="contact"
+          style={{ order: landingPage.sectionOrder.indexOf("contact") }}
+        >
+          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="contact-heading">
+            Contact and location
+          </h2>
+          <div className="mt-6 flex flex-col gap-4 text-sm leading-6 text-muted-foreground">
+            {landingPage.contact.address && (
+              <p className="inline-flex items-start gap-2">
+                <MapPin aria-hidden="true" className="mt-1 size-4 shrink-0 text-brand" />
+                <span>{landingPage.contact.address}</span>
+              </p>
+            )}
+            {landingPage.contact.phone && (
+              <a className="inline-flex min-h-9 items-center gap-2 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2" href={`tel:${landingPage.contact.phone.replace(/[^\d+]/g, "")}`}>
+                <Phone aria-hidden="true" className="size-4 shrink-0 text-brand" />
+                {landingPage.contact.phone}
+              </a>
+            )}
+            {landingPage.contact.email && (
+              <a className="inline-flex min-h-9 items-center gap-2 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2" href={`mailto:${landingPage.contact.email}`}>
+                <Mail aria-hidden="true" className="size-4 shrink-0 text-brand" />
+                {landingPage.contact.email}
+              </a>
+            )}
+            <div className="flex flex-wrap gap-4">
+              {landingPage.contact.mapUrl && (
+                <a className="inline-flex min-h-9 items-center gap-2 font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2" href={landingPage.contact.mapUrl} rel="noopener noreferrer" target="_blank">
+                  <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                  Map
+                </a>
+              )}
+              {landingPage.contact.facebookUrl && (
+                <a className="inline-flex min-h-9 items-center gap-2 font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2" href={landingPage.contact.facebookUrl} rel="noopener noreferrer" target="_blank">
+                  <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
+                  Facebook
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

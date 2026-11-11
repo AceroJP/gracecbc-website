@@ -3,10 +3,13 @@ import { Suspense } from "react";
 import { PublicStatusAlert } from "@/components/public/public-status-alert";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicHeader } from "@/components/public/public-header";
+import { getPublishedLandingPage } from "@/lib/landing-page-server";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const landingPage = await getPublishedLandingPage();
+
   return (
     <>
       <PublicHeader />
@@ -14,7 +17,9 @@ export default function PublicLayout({
         <PublicStatusAlert />
       </Suspense>
       {children}
-      <PublicFooter />
+      <PublicFooter
+        contact={landingPage.visibility.contact ? landingPage.contact : null}
+      />
     </>
   );
 }

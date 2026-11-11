@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      landing_page_drafts: {
+        Row: {
+          id: boolean;
+          content: Json;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          content?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          id?: boolean;
+          content?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      landing_page_published: {
+        Row: {
+          id: boolean;
+          content: Json;
+          published_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          content?: Json;
+          published_at?: string;
+        };
+        Update: {
+          id?: boolean;
+          content?: Json;
+          published_at?: string;
+        };
+        Relationships: [];
+      };
       announcements: {
         Row: {
           id: string;
