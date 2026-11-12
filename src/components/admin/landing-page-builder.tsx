@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 import {
   discardLandingPageDraftAction,
@@ -76,6 +77,15 @@ function imageFieldPath(slot: ImageSlot) {
   return `sectionBackgrounds.${slot.slice("background:".length)}.image`;
 }
 
+function getSectionSnapshot(content: LandingPageContent, section: LandingPageSectionKey) {
+  return JSON.stringify({
+    content: content[section],
+    visible: content.visibility[section],
+    background: content.sectionBackgrounds[section],
+    order: content.sectionOrder.indexOf(section),
+  });
+}
+
 function FieldMessages({ messages }: { messages?: string[] }) {
   return messages?.length ? <FieldError>{messages.join(" ")}</FieldError> : null;
 }
@@ -104,6 +114,7 @@ export function LandingPageBuilder({
 }: Props) {
   const router = useRouter();
   const [content, setContent] = useState(draft);
+  const [savedDraftContent, setSavedDraftContent] = useState(draft);
   const [publishedContent, setPublishedContent] = useState(published);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
@@ -111,10 +122,28 @@ export function LandingPageBuilder({
   const [uploadedUrls, setUploadedUrls] = useState(imageUrls);
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const [openSection, setOpenSection] = useState<LandingPageSectionKey | null>(null);
+  const sectionHeaderRefs = useRef<
+    Partial<Record<LandingPageSectionKey, HTMLButtonElement | null>>
+  >({});
   const hasDraftChanges = useMemo(
     () => JSON.stringify(content) !== JSON.stringify(publishedContent),
     [content, publishedContent],
   );
+
+  useEffect(() => {
+    if (!openSection) return;
+    const header = sectionHeaderRefs.current[openSection];
+    if (!header) return;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    header.scrollIntoView({
+      behavior: prefersReducedMotion ? "instant" : "smooth",
+      block: "start",
+    });
+  }, [openSection]);
 
   function clearFieldErrors() {
     setFieldErrors({});
@@ -167,6 +196,7 @@ export function LandingPageBuilder({
         return;
       }
 
+      setSavedDraftContent(validContent);
       if (publish) {
         setPublishedContent(validContent);
         setPublishedUrls(uploadedUrls);
@@ -323,6 +353,7 @@ export function LandingPageBuilder({
       }
       Swal.close();
       setContent(published);
+      setSavedDraftContent(published);
       setPublishedContent(published);
       setUploadedUrls(publishedUrls);
       setFieldErrors({});
@@ -834,62 +865,113 @@ export function LandingPageBuilder({
           </FieldGroup>
         </section>
 
-        <div className="flex flex-col gap-4">
-          {content.sectionOrder.map((section, index) => (
+        <div className="flex flex-col gap-3">
+          {content.sectionOrder.map((section, index) => {
+            const sectionIsOpen = openSection === section;
+            const hasUnsavedChanges =
+              getSectionSnapshot(content, section) !==
+              getSectionSnapshot(savedDraftContent, section);
+
+            return (
             <section
               aria-labelledby={`${section}-editor-heading`}
-              className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+              className="rounded-xl border border-border bg-card p-3 sm:p-4"
               key={section}
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold" id={`${section}-editor-heading`}>
-                    {sectionTitles[section]}
-                  </h2>
-                  <label className="mt-2 inline-flex min-h-9 items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  aria-controls={`${section}-editor-panel`}
+                  aria-expanded={sectionIsOpen}
+                  className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
+                  id={`${section}-editor-heading`}
+                  onClick={() =>
+                    setOpenSection((current) => current === section ? null : section)
+                  }
+                  ref={(element) => {
+                    sectionHeaderRefs.current[section] = element;
+                  }}
+                  type="button"
+                  variant="ghost"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-semibold">
+                      {sectionTitles[section]}
+                    </span>
+                    {hasUnsavedChanges && (
+                      <span
+                        aria-label="Unsaved changes"
+                        className="size-2 shrink-0 rounded-full bg-primary"
+                        title="Unsaved changes"
+                      />
+                    )}
+                    {hasUnsavedChanges && (
+                      <span className="sr-only">Unsaved changes</span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${
+                      sectionIsOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+                <label
+                  className="inline-flex min-h-9 shrink-0 items-center gap-1.5 px-1 text-xs text-muted-foreground"
+                  htmlFor={`${section}-visibility`}
+                >
                     <input
                       checked={content.visibility[section]}
                       className="size-4 accent-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      id={`${section}-visibility`}
                       onChange={(event) => setVisibility(section, event.target.checked)}
                       type="checkbox"
                     />
-                    Show this section on the homepage
-                  </label>
-                  <FieldMessages messages={fieldErrors[`visibility.${section}`]} />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
+                    Show
+                </label>
+                <div className="flex shrink-0 items-center gap-1">
                   <Button
                     aria-label={`Move ${sectionTitles[section]} up`}
                     disabled={index === 0}
                     onClick={() => updateOrder(section, -1)}
-                    size="sm"
+                    size="icon-sm"
                     type="button"
                     variant="outline"
                   >
-                    Move up
+                    <ArrowUp aria-hidden="true" data-icon="inline-start" />
                   </Button>
                   <Button
                     aria-label={`Move ${sectionTitles[section]} down`}
                     disabled={index === content.sectionOrder.length - 1}
                     onClick={() => updateOrder(section, 1)}
-                    size="sm"
+                    size="icon-sm"
                     type="button"
                     variant="outline"
                   >
-                    Move down
-                  </Button>
-                  <Button
-                    onClick={() => void resetSection(section)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Reset section to default
+                    <ArrowDown aria-hidden="true" data-icon="inline-start" />
                   </Button>
                 </div>
               </div>
 
-              <FieldGroup className="mt-5">
+              <div
+                aria-hidden={!sectionIsOpen}
+                className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+                  sectionIsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                }`}
+                id={`${section}-editor-panel`}
+              >
+                <div className="min-h-0 overflow-hidden" inert={!sectionIsOpen}>
+                  <FieldMessages messages={fieldErrors[`visibility.${section}`]} />
+                  <div className="flex justify-end pt-3">
+                    <Button
+                      onClick={() => void resetSection(section)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Reset section to default
+                    </Button>
+                  </div>
+              <FieldGroup className="pb-2 pt-3">
                 {backgroundFields(section)}
                 {section === "hero" && (
                   <>
@@ -1268,8 +1350,11 @@ export function LandingPageBuilder({
                   </FieldGroup>
                 )}
               </FieldGroup>
+                </div>
+              </div>
             </section>
-          ))}
+            );
+          })}
         </div>
       </div>
 
