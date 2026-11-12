@@ -64,7 +64,7 @@ type ImageSlot =
   | "welcome"
   | "header-logo"
   | `background:${LandingPageSectionKey}`;
-type BuilderPanelKey = LandingPageSectionKey | "footer";
+type BuilderPanelKey = LandingPageSectionKey | "footer" | "header";
 type ScheduleRow = LandingPageContent["schedule"]["rows"][number];
 type ActionResponse = Awaited<ReturnType<typeof saveLandingPageDraftAction>>;
 
@@ -219,7 +219,7 @@ export function LandingPageBuilder({
   const [uploadedUrls, setUploadedUrls] = useState(imageUrls);
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
-  const [openSection, setOpenSection] = useState<BuilderPanelKey | null>(null);
+  const [openSection, setOpenSection] = useState<BuilderPanelKey | null>("header");
   const sectionHeaderRefs = useRef<Partial<Record<BuilderPanelKey, HTMLButtonElement | null>>>({});
   const hasDraftChanges = useMemo(
     () => JSON.stringify(content) !== JSON.stringify(publishedContent),
@@ -979,96 +979,137 @@ export function LandingPageBuilder({
 
         <section
           aria-labelledby="header-editor-heading"
-          className="mb-4 rounded-2xl border border-border bg-card p-5 sm:p-6"
+          className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold" id="header-editor-heading">
-              Navigation header
-            </h2>
+            <Button
+              aria-controls="header-editor-panel"
+              aria-expanded={openSection === "header"}
+              className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
+              id="header-editor-heading"
+              onClick={() =>
+                setOpenSection((current) => current === "header" ? null : "header")
+              }
+              ref={(element) => {
+                sectionHeaderRefs.current.header = element;
+              }}
+              type="button"
+              variant="ghost"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold">Navigation header</span>
+                {JSON.stringify(content.header) !== JSON.stringify(savedDraftContent.header) && (
+                  <>
+                    <span
+                      aria-label="Unsaved changes"
+                      className="size-2 shrink-0 rounded-full bg-primary"
+                      title="Unsaved changes"
+                    />
+                    <span className="sr-only">Unsaved changes</span>
+                  </>
+                )}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${
+                  openSection === "header" ? "rotate-180" : ""
+                }`}
+              />
+            </Button>
             <Button onClick={() => void resetHeader()} size="sm" type="button" variant="ghost">
               Reset header to default
             </Button>
           </div>
-          <FieldGroup className="mt-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="header-name">Church name</FieldLabel>
-                <Input
-                  id="header-name"
-                  maxLength={80}
-                  onChange={(event) => setContent((current) => ({
-                    ...current,
-                    header: { ...current.header, name: event.target.value },
-                  }))}
-                  value={content.header.name}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="header-subtitle">Name second line (optional)</FieldLabel>
-                <Input
-                  id="header-subtitle"
-                  maxLength={80}
-                  onChange={(event) => setContent((current) => ({
-                    ...current,
-                    header: { ...current.header, subtitle: event.target.value },
-                  }))}
-                  value={content.header.subtitle}
-                />
-              </Field>
-            </div>
-            <FieldDescription>
-              Edit the footer title separately in the Footer settings below.
-            </FieldDescription>
-            <Field>
-              <FieldLabel htmlFor="header-logo-size">Logo placeholder size</FieldLabel>
-              <Input
-                id="header-logo-size"
-                max={96}
-                min={28}
-                onChange={(event) => setContent((current) => ({
-                  ...current,
-                  header: { ...current.header, logoSize: Number(event.target.value) },
-                }))}
-                type="range"
-                value={content.header.logoSize}
-              />
-              <FieldDescription>{content.header.logoSize} × {content.header.logoSize} px</FieldDescription>
-            </Field>
-            {imageFields("header-logo", "512 × 512 px", "Logo")}
-            <Field>
-              <FieldLabel>Navigation tab order</FieldLabel>
-              <FieldDescription>Move tabs up or down. Their existing destinations remain unchanged.</FieldDescription>
-              <div className="flex flex-col gap-2">
-                {content.header.navigationOrder.map((key, index) => (
-                  <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3" key={key}>
-                    <span className="text-sm font-medium">{navigationTitles[key]}</span>
-                    <div className="flex gap-2">
-                      <Button
-                        aria-label={`Move ${navigationTitles[key]} tab up`}
-                        disabled={index === 0}
-                        onClick={() => updateNavigationOrder(key, -1)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Move up
-                      </Button>
-                      <Button
-                        aria-label={`Move ${navigationTitles[key]} tab down`}
-                        disabled={index === content.header.navigationOrder.length - 1}
-                        onClick={() => updateNavigationOrder(key, 1)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Move down
-                      </Button>
-                    </div>
+          <div
+            aria-hidden={openSection !== "header"}
+            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+              openSection === "header" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+            id="header-editor-panel"
+          >
+            <div className="min-h-0 overflow-hidden" inert={openSection !== "header"}>
+              <FieldGroup className="pb-2 pt-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="header-name">Church name</FieldLabel>
+                    <Input
+                      id="header-name"
+                      maxLength={80}
+                      onChange={(event) => setContent((current) => ({
+                        ...current,
+                        header: { ...current.header, name: event.target.value },
+                      }))}
+                      value={content.header.name}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="header-subtitle">Name second line (optional)</FieldLabel>
+                    <Input
+                      id="header-subtitle"
+                      maxLength={80}
+                      onChange={(event) => setContent((current) => ({
+                        ...current,
+                        header: { ...current.header, subtitle: event.target.value },
+                      }))}
+                      value={content.header.subtitle}
+                    />
+                  </Field>
+                </div>
+                <FieldDescription>
+                  Edit the footer title separately in the Footer settings below.
+                </FieldDescription>
+                <Field>
+                  <FieldLabel htmlFor="header-logo-size">Logo placeholder size</FieldLabel>
+                  <Input
+                    id="header-logo-size"
+                    max={96}
+                    min={28}
+                    onChange={(event) => setContent((current) => ({
+                      ...current,
+                      header: { ...current.header, logoSize: Number(event.target.value) },
+                    }))}
+                    type="range"
+                    value={content.header.logoSize}
+                  />
+                  <FieldDescription>{content.header.logoSize} × {content.header.logoSize} px</FieldDescription>
+                </Field>
+                {imageFields("header-logo", "512 × 512 px", "Logo")}
+                <Field>
+                  <FieldLabel>Navigation tab order</FieldLabel>
+                  <FieldDescription>Move tabs up or down. Their existing destinations remain unchanged.</FieldDescription>
+                  <div className="flex flex-col gap-2">
+                    {content.header.navigationOrder.map((key, index) => (
+                      <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3" key={key}>
+                        <span className="text-sm font-medium">{navigationTitles[key]}</span>
+                        <div className="flex gap-2">
+                          <Button
+                            aria-label={`Move ${navigationTitles[key]} tab up`}
+                            disabled={index === 0}
+                            onClick={() => updateNavigationOrder(key, -1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Move up
+                          </Button>
+                          <Button
+                            aria-label={`Move ${navigationTitles[key]} tab down`}
+                            disabled={index === content.header.navigationOrder.length - 1}
+                            onClick={() => updateNavigationOrder(key, 1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Move down
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </Field>
-          </FieldGroup>
+                </Field>
+              </FieldGroup>
+            </div>
+          </div>
         </section>
 
         <div className="flex flex-col gap-3">
