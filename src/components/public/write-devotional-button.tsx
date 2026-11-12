@@ -66,7 +66,7 @@ export function WriteDevotionalButton() {
                     Swal.close();
                     await Swal.fire({
                       icon: result.status === "success" ? "success" : "error",
-                      title: result.status === "success" ? "Access granted" : "We couldn’t sign you in",
+                      title: result.status === "success" ? "Access granted" : "Contributor access unavailable",
                       text: result.message ?? "Please try again.",
                       confirmButtonText: "Okay",
                     });
@@ -78,7 +78,7 @@ export function WriteDevotionalButton() {
                     Swal.close();
                     await Swal.fire({
                       icon: "error",
-                      title: "We couldn’t sign you in",
+                      title: "Contributor access unavailable",
                       text: "Please try again, or ask the church administrator for help.",
                       confirmButtonText: "Okay",
                     });

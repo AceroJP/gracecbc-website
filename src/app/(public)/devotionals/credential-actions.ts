@@ -21,6 +21,8 @@ export type ContributorCredentialState = {
 const grantCookie = "gcbc_devotional_grant";
 const credentialHelpMessage =
   "We couldn’t sign you in. Check your username and password, or ask the church administrator for help.";
+const accessUnavailableMessage =
+  "We couldn’t verify contributor access right now. Please try again later or contact the church administrator.";
 
 export async function verifyContributorCredentials(
   _previousState: ContributorCredentialState,
@@ -177,9 +179,21 @@ export async function verifyContributorCredentials(
       });
 
     if (grantError || !grantCreated) {
-      throw new Error("Unable to create a submission grant.", {
-        cause: grantError,
-      });
+      if (grantError) {
+        console.error("Unable to create a submission grant.", {
+          contributorId: contributor.id,
+          error: grantError,
+        });
+      } else {
+        console.warn("Contributor is not eligible for a submission grant.", {
+          contributorId: contributor.id,
+        });
+      }
+      return {
+        status: "error",
+        message:
+          "Your credentials were accepted, but writing access could not be prepared. Please contact the church administrator.",
+      };
     }
 
     const cookieStore = await cookies();
@@ -199,7 +213,7 @@ export async function verifyContributorCredentials(
     console.error("Contributor credential verification failed.", error);
     return {
       status: "error",
-      message: credentialHelpMessage,
+      message: accessUnavailableMessage,
     };
   }
 }
