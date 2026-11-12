@@ -872,6 +872,9 @@ export function LandingPageBuilder({
                 />
               </Field>
             </div>
+            <FieldDescription>
+              The church name and second line are also shown in the public footer.
+            </FieldDescription>
             <Field>
               <FieldLabel htmlFor="header-logo-size">Logo placeholder size</FieldLabel>
               <Input
