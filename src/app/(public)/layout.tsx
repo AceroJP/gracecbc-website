@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { PublicStatusAlert } from "@/components/public/public-status-alert";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicHeader } from "@/components/public/public-header";
+import { LandingPagePublishedRefresh } from "@/components/public/landing-page-published-refresh";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,6 +18,7 @@ export default async function PublicLayout({
 
   return (
     <>
+      <LandingPagePublishedRefresh />
       <PublicHeader settings={landingPage.header} logoUrl={logoUrl} />
       <Suspense fallback={null}>
         <PublicStatusAlert />

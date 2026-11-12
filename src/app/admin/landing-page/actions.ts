@@ -67,6 +67,27 @@ export async function publishLandingPageAction(
   }
 
   const supabase = await createClient();
+  const { data: publishedRow, error: publishedReadError } = await supabase
+    .from("landing_page_published")
+    .select("content")
+    .eq("id", true)
+    .maybeSingle();
+  if (publishedReadError) {
+    reportDatabaseError("Unable to check the published landing page.", publishedReadError);
+  }
+
+  let shouldUpdatePublished = true;
+  if (publishedRow) {
+    const currentPublished = parseLandingPageContent(publishedRow.content);
+    if (!currentPublished.success) {
+      throw new Error("Published landing page content is invalid.", {
+        cause: currentPublished.error,
+      });
+    }
+    shouldUpdatePublished =
+      JSON.stringify(currentPublished.data) !== JSON.stringify(parsed.data);
+  }
+
   const publishedAt = new Date().toISOString();
   const { error: draftError } = await supabase.from("landing_page_drafts").upsert(
     {
@@ -80,17 +101,23 @@ export async function publishLandingPageAction(
     reportDatabaseError("Unable to save the landing page draft before publishing.", draftError);
   }
 
-  const { error } = await supabase.from("landing_page_published").upsert(
-    { id: true, content: parsed.data, published_at: publishedAt },
-    { onConflict: "id" },
-  );
-  if (error) {
-    reportDatabaseError("Unable to publish the landing page.", error);
+  if (shouldUpdatePublished) {
+    const { error } = await supabase.from("landing_page_published").upsert(
+      { id: true, content: parsed.data, published_at: publishedAt },
+      { onConflict: "id" },
+    );
+    if (error) {
+      reportDatabaseError("Unable to publish the landing page.", error);
+    }
   }
 
-  revalidatePath("/");
   revalidatePath("/admin/landing-page");
-  return { status: "success", message: "The public homepage has been updated." };
+  if (shouldUpdatePublished) {
+    revalidatePath("/");
+    return { status: "success", message: "The public homepage has been updated." };
+  }
+
+  return { status: "success", message: "No homepage changes needed publishing." };
 }
 
 export async function discardLandingPageDraftAction(): Promise<ActionResult> {

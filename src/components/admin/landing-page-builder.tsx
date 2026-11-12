@@ -803,7 +803,7 @@ export function LandingPageBuilder({
               Save draft
             </Button>
             <Button
-              disabled={busy}
+              disabled={busy || !hasDraftChanges}
               onClick={async () => {
                 if (
                   !(await confirmAction(
