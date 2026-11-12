@@ -20,6 +20,7 @@ import {
 } from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
+import { getYouTubeVideoEmbedUrl } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
 import { RegistrationForm } from "@/components/public/registration-form";
@@ -144,6 +145,7 @@ export default async function Home({ searchParams }: HomeProps) {
     landingPage.visibility.schedule && landingPage.schedule.rows.length > 0;
   const hasLivestream =
     landingPage.visibility.livestream && Boolean(landingPage.livestream.url);
+  const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(landingPage.livestream.url);
   const hasAnnouncements =
     landingPage.visibility.announcements && publicAnnouncements.length > 0;
   const hasEvents = landingPage.visibility.events && events.length > 0;
@@ -281,24 +283,41 @@ export default async function Home({ searchParams }: HomeProps) {
           id="livestream"
           style={{ order: landingPage.sectionOrder.indexOf("livestream") }}
         >
-          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
-                <Headphones aria-hidden="true" className="size-5" />
-              </span>
-              <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
-                {landingPage.livestream.label || "YouTube livestream"}
-              </h2>
+          <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                  <Headphones aria-hidden="true" className="size-5" />
+                </span>
+                <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
+                  {landingPage.livestream.label || "YouTube livestream"}
+                </h2>
+              </div>
+              {!livestreamEmbedUrl && (
+                <a
+                  className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
+                  href={landingPage.livestream.url}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Watch on YouTube
+                  <ArrowUpRight aria-hidden="true" className="size-4" />
+                </a>
+              )}
             </div>
-            <a
-              className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
-              href={landingPage.livestream.url}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Watch on YouTube
-              <ArrowUpRight aria-hidden="true" className="size-4" />
-            </a>
+            {livestreamEmbedUrl && (
+              <div className="aspect-video overflow-hidden rounded-xl bg-black">
+                <iframe
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="size-full"
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  src={livestreamEmbedUrl}
+                  title={landingPage.livestream.label || "YouTube livestream"}
+                />
+              </div>
+            )}
           </div>
         </section>
       )}

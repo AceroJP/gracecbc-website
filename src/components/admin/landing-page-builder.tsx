@@ -20,7 +20,9 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
+import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
+  getYouTubeVideoEmbedUrl,
   parseLandingPageContent,
   resetLandingPageSection,
   type LandingPageContent,
@@ -56,6 +58,21 @@ function isActionError(result: ActionResponse): result is Extract<ActionResponse
 
 function FieldMessages({ messages }: { messages?: string[] }) {
   return messages?.length ? <FieldError>{messages.join(" ")}</FieldError> : null;
+}
+
+async function confirmAction(title: string, text: string, confirmButtonText: string) {
+  const result = await Swal.fire({
+    icon: "warning",
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonText,
+    cancelButtonText: "Cancel",
+    reverseButtons: true,
+    focusCancel: true,
+  });
+
+  return result.isConfirmed;
 }
 
 export function LandingPageBuilder({
@@ -103,11 +120,22 @@ export function LandingPageBuilder({
   async function runAction(action: () => Promise<ActionResponse>, publish = false) {
     const validContent = validateDraft();
     if (!validContent) {
+      await Swal.fire({
+        icon: "error",
+        title: "Check your content",
+        text: "Review the highlighted fields before continuing.",
+        confirmButtonText: "Okay",
+      });
       return;
     }
     setBusy(true);
+    showLoadingAlert(
+      publish ? "Publishing homepage" : "Saving draft",
+      "Please wait while we save your changes...",
+    );
     try {
       const result = await action();
+      Swal.close();
       if (isActionError(result)) {
         setFieldErrors(result.fieldErrors ?? {});
         await Swal.fire({
@@ -131,6 +159,7 @@ export function LandingPageBuilder({
         confirmButtonText: "Okay",
       });
     } catch (error) {
+      Swal.close();
       console.error("Landing page builder request failed.", error);
       await Swal.fire({
         icon: "error",
@@ -167,8 +196,14 @@ export function LandingPageBuilder({
     });
   }
 
-  function resetSection(section: LandingPageSectionKey) {
-    if (!window.confirm(`Reset ${sectionTitles[section]} to its default settings?`)) {
+  async function resetSection(section: LandingPageSectionKey) {
+    if (
+      !(await confirmAction(
+        `Reset ${sectionTitles[section]}?`,
+        "This section will return to its default settings in the draft.",
+        "Reset section",
+      ))
+    ) {
       return;
     }
     setContent((current) => resetLandingPageSection(current, section));
@@ -179,15 +214,31 @@ export function LandingPageBuilder({
   }
 
   async function discardDraft() {
-    if (!window.confirm("Discard all unpublished edits and restore the published version?")) {
+    if (
+      !(await confirmAction(
+        "Discard unpublished edits?",
+        "The draft will be restored to the currently published homepage.",
+        "Discard draft",
+      ))
+    ) {
       return;
     }
     setBusy(true);
+    showLoadingAlert("Discarding draft", "Restoring the published version...");
     try {
       const result = await discardLandingPageDraftAction();
       if (isActionError(result)) {
-        throw new Error(result.message);
+        Swal.close();
+        setFieldErrors(result.fieldErrors ?? {});
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to discard draft",
+          text: result.message,
+          confirmButtonText: "Okay",
+        });
+        return;
       }
+      Swal.close();
       setContent(published);
       setPublishedContent(published);
       setUploadedUrls(publishedUrls);
@@ -200,6 +251,7 @@ export function LandingPageBuilder({
         confirmButtonText: "Okay",
       });
     } catch (error) {
+      Swal.close();
       console.error("Unable to discard the landing page draft.", error);
       await Swal.fire({
         icon: "error",
@@ -235,10 +287,18 @@ export function LandingPageBuilder({
 
     setImageBusy(slot);
     clearFieldErrors();
+    showLoadingAlert("Uploading photo", "Please wait while your photo is uploaded...");
     try {
       const result = await uploadLandingPageImageAction(formData);
+      Swal.close();
       if (result.status === "error") {
         setFieldErrors({ [`${slot}.image`]: [result.message] });
+        await Swal.fire({
+          icon: "error",
+          title: "Photo upload failed",
+          text: result.message,
+          confirmButtonText: "Okay",
+        });
         return;
       }
       setContent((current) => ({
@@ -247,16 +307,35 @@ export function LandingPageBuilder({
       }));
       setUploadedUrls((current) => ({ ...current, [slot]: result.url }));
       form.reset();
+      await Swal.fire({
+        icon: "success",
+        title: "Photo uploaded",
+        text: "The photo is added to your draft. Save or publish to apply the change.",
+        confirmButtonText: "Okay",
+      });
     } catch (error) {
+      Swal.close();
       console.error("Landing page image upload failed.", error);
       setFieldErrors({ [`${slot}.image`]: ["Unable to upload this image. Please try again."] });
+      await Swal.fire({
+        icon: "error",
+        title: "Photo upload failed",
+        text: "Unable to upload this image. Please try again.",
+        confirmButtonText: "Okay",
+      });
     } finally {
       setImageBusy(null);
     }
   }
 
-  function removeImage(slot: ImageSlot) {
-    if (!window.confirm("Remove this image from the draft?")) {
+  async function removeImage(slot: ImageSlot) {
+    if (
+      !(await confirmAction(
+        "Remove this photo?",
+        "The photo will be removed from this draft.",
+        "Remove photo",
+      ))
+    ) {
       return;
     }
     setContent((current) => ({
@@ -355,6 +434,7 @@ export function LandingPageBuilder({
 
   const previewWidth =
     previewDevice === "mobile" ? "mx-auto max-w-[375px]" : "w-full";
+  const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(content.livestream.url);
 
   return (
     <div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -380,7 +460,13 @@ export function LandingPageBuilder({
             <Button
               disabled={busy}
               onClick={async () => {
-                if (!window.confirm("Publish these changes to the public homepage?")) {
+                if (
+                  !(await confirmAction(
+                    "Publish these changes?",
+                    "This will update the public homepage.",
+                    "Publish changes",
+                  ))
+                ) {
                   return;
                 }
                 await runAction(() => publishLandingPageAction(content), true);
@@ -447,7 +533,7 @@ export function LandingPageBuilder({
                     Move down
                   </Button>
                   <Button
-                    onClick={() => resetSection(section)}
+                    onClick={() => void resetSection(section)}
                     size="sm"
                     type="button"
                     variant="ghost"
@@ -534,8 +620,16 @@ export function LandingPageBuilder({
                           </Field>
                           <Button
                             className="sm:col-span-2 sm:justify-self-start"
-                            onClick={() => {
-                              if (!window.confirm("Remove this hero button?")) return;
+                            onClick={async () => {
+                              if (
+                                !(await confirmAction(
+                                  "Remove this hero button?",
+                                  "The button will be removed from this draft.",
+                                  "Remove button",
+                                ))
+                              ) {
+                                return;
+                              }
                               setContent((current) => ({
                                 ...current,
                                 hero: {
@@ -617,8 +711,16 @@ export function LandingPageBuilder({
                         ))}
                         <Button
                           className="sm:col-span-2 sm:justify-self-start"
-                          onClick={() => {
-                            if (!window.confirm("Remove this worship schedule row?")) return;
+                          onClick={async () => {
+                            if (
+                              !(await confirmAction(
+                                "Remove this schedule row?",
+                                "The row will be removed from this draft.",
+                                "Remove row",
+                              ))
+                            ) {
+                              return;
+                            }
                             setContent((current) => ({
                               ...current,
                               schedule: {
@@ -672,6 +774,9 @@ export function LandingPageBuilder({
                         type="url"
                         value={content.livestream.url}
                       />
+                      <FieldDescription>
+                        Video and live-video URLs embed in the homepage. Channel URLs without a specific video remain a YouTube link.
+                      </FieldDescription>
                       <FieldMessages messages={fieldErrors["livestream.url"]} />
                     </Field>
                     <Field>
@@ -910,7 +1015,28 @@ export function LandingPageBuilder({
                   return (
                     <section className="rounded-xl border border-border p-4" key={section}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
-                      <p className="mt-2 break-all text-sm text-muted-foreground">{content.livestream.url}</p>
+                      {livestreamEmbedUrl ? (
+                        <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
+                          <iframe
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            className="size-full"
+                            loading="lazy"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            src={livestreamEmbedUrl}
+                            title={content.livestream.label || "YouTube livestream preview"}
+                          />
+                        </div>
+                      ) : (
+                        <a
+                          className="mt-2 block break-all text-sm text-muted-foreground underline"
+                          href={content.livestream.url}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          Open on YouTube
+                        </a>
+                      )}
                     </section>
                   );
                 }

@@ -220,6 +220,35 @@ export function parseLandingPageContent(value: unknown) {
   return builderContentSchema.safeParse(value);
 }
 
+export function getYouTubeVideoEmbedUrl(value: string): string | null {
+  if (!URL.canParse(value)) {
+    return null;
+  }
+
+  const url = new URL(value);
+  const hostname = url.hostname.toLowerCase();
+  if (hostname !== "youtu.be" && !hostname.endsWith(".youtube.com") && hostname !== "youtube.com") {
+    return null;
+  }
+
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const normalizedPath = url.pathname.replace(/\/+$/, "");
+  const videoId =
+    hostname === "youtu.be"
+      ? pathSegments[0]
+      : normalizedPath === "/watch"
+        ? url.searchParams.get("v")
+        : ["embed", "live", "shorts", "v"].includes(pathSegments[0] ?? "")
+          ? pathSegments[1]
+          : null;
+
+  if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
+    return null;
+  }
+
+  return `https://www.youtube-nocookie.com/embed/${videoId}`;
+}
+
 export function resetLandingPageSection(
   content: LandingPageContent,
   section: LandingPageSectionKey,
