@@ -542,6 +542,33 @@ export function LandingPageBuilder({
       <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border p-4">
         <h3 className="text-sm font-semibold">Section background (optional)</h3>
         <Field>
+          <FieldLabel htmlFor={`${section}-min-height`}>Minimum section height</FieldLabel>
+          <Input
+            aria-describedby={`${section}-min-height-help`}
+            id={`${section}-min-height`}
+            max={1600}
+            min={0}
+            onChange={(event) => setContent((current) => ({
+              ...current,
+              sectionBackgrounds: {
+                ...current.sectionBackgrounds,
+                [section]: {
+                  ...current.sectionBackgrounds[section],
+                  minHeight: event.target.value === "" ? 0 : Number(event.target.value),
+                },
+              },
+            }))}
+            placeholder="Auto"
+            step={1}
+            type="number"
+            value={background.minHeight || ""}
+          />
+          <FieldDescription id={`${section}-min-height-help`}>
+            Enter 0 for Auto, or choose 1–1600 px. Content can make a section taller.
+          </FieldDescription>
+          <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.minHeight`]} />
+        </Field>
+        <Field>
           <FieldLabel htmlFor={`${section}-background-color`}>Background color</FieldLabel>
           <div className="flex flex-wrap items-center gap-3">
             <Input
@@ -616,6 +643,7 @@ export function LandingPageBuilder({
       backgroundImage: url ? `url("${url}")` : undefined,
       backgroundPosition: "center",
       backgroundSize: "cover",
+      minHeight: background.minHeight || undefined,
     };
   };
 

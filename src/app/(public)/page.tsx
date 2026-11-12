@@ -139,6 +139,7 @@ export default async function Home({ searchParams }: HomeProps) {
       backgroundImage: url ? `url("${url}")` : undefined,
       backgroundPosition: "center",
       backgroundSize: "cover",
+      minHeight: background.minHeight || undefined,
     };
   };
   const heroImageUrl = imageUrl(landingPage.hero.image.path);
@@ -182,7 +183,10 @@ export default async function Home({ searchParams }: HomeProps) {
         style={{ order: landingPage.sectionOrder.indexOf("hero"), ...sectionBackgroundStyle("hero") }}
       >
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_15%,rgba(147,197,190,0.2),transparent_38%),linear-gradient(125deg,transparent_45%,rgba(10,31,38,0.32))]" />
-        <div className={`mx-auto grid min-h-[580px] max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:px-12 lg:py-32 ${heroImageUrl ? "lg:grid-cols-[1.15fr_0.85fr]" : ""}`}>
+        <div
+          className={`mx-auto grid max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:px-12 lg:py-32 ${heroImageUrl ? "lg:grid-cols-[1.15fr_0.85fr]" : ""}`}
+          style={{ minHeight: landingPage.sectionBackgrounds.hero.minHeight || undefined }}
+        >
           <div className="max-w-2xl">
             <h1 className="text-5xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
               {landingPage.hero.headline}

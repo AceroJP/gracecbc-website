@@ -60,13 +60,20 @@ const imageSchema = z.object({
 });
 
 const defaultImage = { path: null, alt: "" };
-const defaultBackground = { image: defaultImage, color: "" };
+const defaultBackground = { image: defaultImage, color: "", minHeight: 0 };
+const defaultHeroBackground = { ...defaultBackground, minHeight: 580 };
 const backgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  minHeight: z.number().int().min(0).max(1600).default(0),
+});
+const heroBackgroundSchema = z.object({
+  image: imageSchema.default(defaultImage),
+  color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  minHeight: z.number().int().min(0).max(1600).default(580),
 });
 const defaultSectionBackgrounds = {
-  hero: defaultBackground,
+  hero: defaultHeroBackground,
   welcome: defaultBackground,
   schedule: defaultBackground,
   livestream: defaultBackground,
@@ -99,7 +106,7 @@ const builderContentSchema = z.object({
     ).default([...landingPageNavigationKeys]),
   }).default(defaultHeader),
   sectionBackgrounds: z.object({
-    hero: backgroundSchema.default(defaultBackground),
+    hero: heroBackgroundSchema.default(defaultHeroBackground),
     welcome: backgroundSchema.default(defaultBackground),
     schedule: backgroundSchema.default(defaultBackground),
     livestream: backgroundSchema.default(defaultBackground),
