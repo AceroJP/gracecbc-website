@@ -596,7 +596,7 @@ export function LandingPageBuilder({
             value={background.minHeight || ""}
           />
           <FieldDescription id={`${section}-min-height-help`}>
-            Enter 0 for Auto, or choose 1–1600 px. Content can make a section taller.
+            This is a minimum, not a fixed height. Enter 0 for Auto; content can make a section taller.
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.minHeight`]} />
         </Field>
@@ -1551,7 +1551,7 @@ export function LandingPageBuilder({
                     <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
                       {livestreamEmbedUrl ? (
-                        <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
+                        <div className="mx-auto mt-3 aspect-video w-full max-w-3xl overflow-hidden rounded-lg bg-black">
                           <iframe
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             allowFullScreen

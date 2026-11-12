@@ -317,8 +317,8 @@ export default async function Home({ searchParams }: HomeProps) {
           id="livestream"
           style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10 lg:px-12">
-            <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+          <div className="mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 lg:px-12">
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
@@ -341,7 +341,7 @@ export default async function Home({ searchParams }: HomeProps) {
                 )}
               </div>
               {livestreamEmbedUrl && (
-                <div className="aspect-video overflow-hidden rounded-xl bg-black">
+                <div className="mx-auto aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-black">
                   <iframe
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
