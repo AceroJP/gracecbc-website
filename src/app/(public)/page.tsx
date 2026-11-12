@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import {
   announcementBucket,
@@ -22,6 +23,7 @@ import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import {
   getYouTubeVideoEmbedUrl,
+  type LandingPageBackgroundStyleVariables,
   type LandingPageSectionKey,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
@@ -131,14 +133,16 @@ export default async function Home({ searchParams }: HomeProps) {
     path
       ? supabase.storage.from("landing-page-images").getPublicUrl(path).data.publicUrl
       : null;
-  const sectionBackgroundStyle = (section: LandingPageSectionKey) => {
+  const sectionBackgroundStyle = (
+    section: LandingPageSectionKey,
+  ): CSSProperties & LandingPageBackgroundStyleVariables => {
     const background = landingPage.sectionBackgrounds[section];
     const url = imageUrl(background.image.path);
     return {
+      "--landing-section-background-image": url ? `url("${url}")` : "none",
+      "--landing-section-background-opacity": background.imageOpacity / 100,
+      "--landing-section-background-blur": `${background.imageBlur}px`,
       backgroundColor: background.color || undefined,
-      backgroundImage: url ? `url("${url}")` : undefined,
-      backgroundPosition: "center",
-      backgroundSize: "cover",
       minHeight: background.minHeight || undefined,
       color: background.textColor || undefined,
     };
@@ -181,6 +185,7 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasHero && <section
         id="landing-page"
         className="relative isolate overflow-hidden bg-brand text-white"
+        data-section-background={landingPage.sectionBackgrounds.hero.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.hero.textColor ? "true" : undefined}
         style={{ order: landingPage.sectionOrder.indexOf("hero"), ...sectionBackgroundStyle("hero") }}
       >
@@ -237,6 +242,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <section
           aria-labelledby="welcome-heading"
           className="w-full"
+          data-section-background={landingPage.sectionBackgrounds.welcome.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.welcome.textColor ? "true" : undefined}
           id="welcome"
           style={{ order: landingPage.sectionOrder.indexOf("welcome"), ...sectionBackgroundStyle("welcome") }}
@@ -272,6 +278,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <section
           aria-labelledby="worship-schedule-heading"
           className="w-full"
+          data-section-background={landingPage.sectionBackgrounds.schedule.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.schedule.textColor ? "true" : undefined}
           id="schedules"
           style={{ order: landingPage.sectionOrder.indexOf("schedule"), ...sectionBackgroundStyle("schedule") }}
@@ -305,6 +312,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <section
           aria-labelledby="livestream-heading"
           className="w-full"
+          data-section-background={landingPage.sectionBackgrounds.livestream.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.livestream.textColor ? "true" : undefined}
           id="livestream"
           style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
@@ -353,6 +361,7 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasAnnouncements && <section
         aria-labelledby="announcements-heading"
         className="w-full"
+        data-section-background={landingPage.sectionBackgrounds.announcements.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.announcements.textColor ? "true" : undefined}
         id="announcements"
         style={{ order: landingPage.sectionOrder.indexOf("announcements"), ...sectionBackgroundStyle("announcements") }}
@@ -460,6 +469,7 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasEvents && <section
         aria-labelledby="upcoming-events-heading"
         className="w-full"
+        data-section-background={landingPage.sectionBackgrounds.events.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.events.textColor ? "true" : undefined}
         id="events"
         style={{ order: landingPage.sectionOrder.indexOf("events"), ...sectionBackgroundStyle("events") }}
@@ -545,6 +555,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <section
           aria-labelledby="devotionals-heading"
           className="w-full"
+          data-section-background={landingPage.sectionBackgrounds.devotionals.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.devotionals.textColor ? "true" : undefined}
           id="devotionals"
           style={{ order: landingPage.sectionOrder.indexOf("devotionals"), ...sectionBackgroundStyle("devotionals") }}
@@ -601,6 +612,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <section
           aria-labelledby="contact-heading"
           className="w-full"
+          data-section-background={landingPage.sectionBackgrounds.contact.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.contact.textColor ? "true" : undefined}
           id="contact"
           style={{ order: landingPage.sectionOrder.indexOf("contact"), ...sectionBackgroundStyle("contact") }}

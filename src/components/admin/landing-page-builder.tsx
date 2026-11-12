@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
@@ -24,6 +24,7 @@ import {
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
   getYouTubeVideoEmbedUrl,
+  type LandingPageBackgroundStyleVariables,
   getDefaultLandingPageContent,
   parseLandingPageContent,
   resetLandingPageSection,
@@ -571,7 +572,7 @@ export function LandingPageBuilder({
     const background = content.sectionBackgrounds[section];
     return (
       <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border p-4">
-        <h3 className="text-sm font-semibold">Section background (optional)</h3>
+        <h3 className="text-sm font-semibold">Image style and section background</h3>
         <Field>
           <FieldLabel htmlFor={`${section}-min-height`}>Minimum section height</FieldLabel>
           <Input
@@ -599,6 +600,63 @@ export function LandingPageBuilder({
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.minHeight`]} />
         </Field>
+        {imageFields(slot, "1920 × 1080 px", "Background image")}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${section}-image-opacity`}>Background image opacity</FieldLabel>
+            <Input
+              aria-describedby={`${section}-image-opacity-help`}
+              aria-valuetext={`${background.imageOpacity}%`}
+              id={`${section}-image-opacity`}
+              max={100}
+              min={0}
+              onChange={(event) => setContent((current) => ({
+                ...current,
+                sectionBackgrounds: {
+                  ...current.sectionBackgrounds,
+                  [section]: {
+                    ...current.sectionBackgrounds[section],
+                    imageOpacity: Number(event.target.value),
+                  },
+                },
+              }))}
+              step={1}
+              type="range"
+              value={background.imageOpacity}
+            />
+            <FieldDescription id={`${section}-image-opacity-help`}>
+              {background.imageOpacity}% — 0% transparent, 100% fully visible.
+            </FieldDescription>
+            <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.imageOpacity`]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${section}-image-blur`}>Background image blur</FieldLabel>
+            <Input
+              aria-describedby={`${section}-image-blur-help`}
+              aria-valuetext={`${background.imageBlur} pixels`}
+              id={`${section}-image-blur`}
+              max={20}
+              min={0}
+              onChange={(event) => setContent((current) => ({
+                ...current,
+                sectionBackgrounds: {
+                  ...current.sectionBackgrounds,
+                  [section]: {
+                    ...current.sectionBackgrounds[section],
+                    imageBlur: Number(event.target.value),
+                  },
+                },
+              }))}
+              step={1}
+              type="range"
+              value={background.imageBlur}
+            />
+            <FieldDescription id={`${section}-image-blur-help`}>
+              {background.imageBlur} px blur.
+            </FieldDescription>
+            <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.imageBlur`]} />
+          </Field>
+        </div>
         <Field>
           <FieldLabel htmlFor={`${section}-background-color`}>Background color</FieldLabel>
           <div className="flex flex-wrap items-center gap-3">
@@ -687,7 +745,6 @@ export function LandingPageBuilder({
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.textColor`]} />
         </Field>
-        {imageFields(slot, "1920 × 1080 px", "Background image")}
         <FieldDescription>
           When both are set, the image is shown over this color.
         </FieldDescription>
@@ -709,14 +766,16 @@ export function LandingPageBuilder({
   const previewWidth =
     previewDevice === "mobile" ? "mx-auto max-w-[375px]" : "w-full";
   const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(content.livestream.url);
-  const previewBackgroundStyle = (section: LandingPageSectionKey) => {
+  const previewBackgroundStyle = (
+    section: LandingPageSectionKey,
+  ): CSSProperties & LandingPageBackgroundStyleVariables => {
     const background = content.sectionBackgrounds[section];
     const url = uploadedUrls[`background:${section}`];
     return {
+      "--landing-section-background-image": url ? `url("${url}")` : "none",
+      "--landing-section-background-opacity": background.imageOpacity / 100,
+      "--landing-section-background-blur": `${background.imageBlur}px`,
       backgroundColor: background.color || undefined,
-      backgroundImage: url ? `url("${url}")` : undefined,
-      backgroundPosition: "center",
-      backgroundSize: "cover",
       minHeight: background.minHeight || undefined,
       color: background.textColor || undefined,
     };
@@ -1432,6 +1491,7 @@ export function LandingPageBuilder({
                   return (
                     <section
                       className="rounded-xl bg-brand p-5 text-white"
+                      data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined}
                       data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined}
                       key={section}
                       style={previewBackgroundStyle(section)}
@@ -1464,7 +1524,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "welcome" && (content.welcome.text || content.welcome.image.path)) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       {content.welcome.image.path && uploadedUrls.welcome && (
                         <div className="relative mb-3 aspect-video overflow-hidden rounded-lg">
                           <Image alt={content.welcome.image.alt} className="object-cover" fill sizes="320px" src={uploadedUrls.welcome} unoptimized />
@@ -1476,7 +1536,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "schedule" && content.schedule.rows.length > 0) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Worship schedule</p>
                       {content.schedule.rows.map((row) => (
                         <p className="mt-2 text-sm text-muted-foreground" key={row.id}>
@@ -1488,7 +1548,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "livestream" && content.livestream.url) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
                       {livestreamEmbedUrl ? (
                         <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
@@ -1517,7 +1577,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "announcements" || section === "events") {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content[section].title}</p>
                       {content[section].intro && <p className="mt-2 text-sm text-muted-foreground">{content[section].intro}</p>}
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -1528,7 +1588,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "devotionals") {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Devotionals</p>
                       <p className="mt-2 text-sm text-muted-foreground">{content.devotionals.count} items linking to /devotionals</p>
                     </section>
@@ -1542,7 +1602,7 @@ export function LandingPageBuilder({
                   content.contact.mapUrl
                 )) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Contact and location</p>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {[content.contact.address, content.contact.phone, content.contact.email].filter(Boolean).join(" · ")}

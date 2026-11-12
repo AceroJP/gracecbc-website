@@ -108,6 +108,25 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+[data-section-background] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-section-background]::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  clip-path: inset(0);
+  background-image: var(--landing-section-background-image);
+  background-position: center;
+  background-size: cover;
+  content: "";
+  filter: blur(var(--landing-section-background-blur));
+  opacity: var(--landing-section-background-opacity);
+  pointer-events: none;
+}
+
 [data-section-custom-text] :is(h1, h2, h3, h4, p, a, span, li, time, label, strong, em) {
   color: inherit !important;
 }

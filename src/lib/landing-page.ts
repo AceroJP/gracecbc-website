@@ -13,6 +13,12 @@ export const landingPageSectionKeys = [
 
 export type LandingPageSectionKey = (typeof landingPageSectionKeys)[number];
 
+export type LandingPageBackgroundStyleVariables = {
+  "--landing-section-background-image": string;
+  "--landing-section-background-opacity": number;
+  "--landing-section-background-blur": string;
+};
+
 export const landingPageNavigationKeys = [
   "events",
   "schedules",
@@ -65,6 +71,8 @@ const defaultBackground = {
   color: "",
   textColor: "",
   minHeight: 0,
+  imageOpacity: 100,
+  imageBlur: 0,
 };
 const defaultHeroBackground = { ...defaultBackground, minHeight: 580 };
 const backgroundSchema = z.object({
@@ -72,12 +80,16 @@ const backgroundSchema = z.object({
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   minHeight: z.number().int().min(0).max(1600).default(0),
+  imageOpacity: z.number().int().min(0).max(100).default(100),
+  imageBlur: z.number().int().min(0).max(20).default(0),
 });
 const heroBackgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   minHeight: z.number().int().min(0).max(1600).default(580),
+  imageOpacity: z.number().int().min(0).max(100).default(100),
+  imageBlur: z.number().int().min(0).max(20).default(0),
 });
 const defaultSectionBackgrounds = {
   hero: defaultHeroBackground,
