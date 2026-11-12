@@ -341,6 +341,40 @@ export function LandingPageBuilder({
     });
   }
 
+  function hasUnsavedPanelChanges(panel: BuilderPanelKey) {
+    if (panel === "header") {
+      return JSON.stringify(content.header) !== JSON.stringify(savedDraftContent.header);
+    }
+    if (panel === "footer") {
+      return JSON.stringify(content.footer) !== JSON.stringify(savedDraftContent.footer);
+    }
+    return getSectionSnapshot(content, panel) !== getSectionSnapshot(savedDraftContent, panel);
+  }
+
+  async function togglePanel(panel: BuilderPanelKey) {
+    if (openSection && hasUnsavedPanelChanges(openSection)) {
+      const panelTitle =
+        openSection === "header"
+          ? "Navigation header"
+          : openSection === "footer"
+            ? "Footer"
+            : sectionTitles[openSection];
+      const result = await Swal.fire({
+        icon: "warning",
+        title: "Unsaved section edits",
+        text: `You have unsaved edits in ${panelTitle}. Close this section? Your changes will remain here, but are not saved to the draft yet.`,
+        showCancelButton: true,
+        confirmButtonText: "Close section",
+        cancelButtonText: "Keep editing",
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      if (!result.isConfirmed) return;
+    }
+
+    setOpenSection((current) => current === panel ? null : panel);
+  }
+
   function updateNavigationOrder(key: LandingPageNavigationKey, direction: -1 | 1) {
     setContent((current) => {
       const index = current.header.navigationOrder.indexOf(key);
@@ -488,6 +522,23 @@ export function LandingPageBuilder({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveDraft() {
+    await runAction(() => saveLandingPageDraftAction(content));
+  }
+
+  async function publishDraft() {
+    if (
+      !(await confirmAction(
+        "Publish these changes?",
+        "This will update the public homepage.",
+        "Publish changes",
+      ))
+    ) {
+      return;
+    }
+    await runAction(() => publishLandingPageAction(content), true);
   }
 
   async function uploadImage(slot: ImageSlot, form: HTMLFormElement) {
@@ -924,6 +975,38 @@ export function LandingPageBuilder({
       "data-section-font-size": appearance.fontSizeScale === 100 ? undefined : "true",
     };
   };
+  function draftActionButtons(compact = false) {
+    return (
+      <div className={`flex flex-wrap gap-2 ${compact ? "justify-end" : ""}`}>
+        <Button
+          disabled={busy || !hasDraftChanges}
+          onClick={() => void discardDraft()}
+          size={compact ? "sm" : undefined}
+          type="button"
+          variant="outline"
+        >
+          Discard draft
+        </Button>
+        <Button
+          disabled={busy}
+          onClick={() => void saveDraft()}
+          size={compact ? "sm" : undefined}
+          type="button"
+          variant="outline"
+        >
+          Save draft
+        </Button>
+        <Button
+          disabled={busy || !hasDraftChanges}
+          onClick={() => void publishDraft()}
+          size={compact ? "sm" : undefined}
+          type="button"
+        >
+          Publish
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -932,39 +1015,7 @@ export function LandingPageBuilder({
           <p aria-live="polite" className="text-sm text-muted-foreground">
             {hasDraftChanges ? "Unpublished edits" : "Draft matches published content"}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={busy || !hasDraftChanges} onClick={() => void discardDraft()} type="button" variant="outline">
-              Discard draft
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void runAction(() => saveLandingPageDraftAction(content))
-              }
-              type="button"
-              variant="outline"
-            >
-              Save draft
-            </Button>
-            <Button
-              disabled={busy || !hasDraftChanges}
-              onClick={async () => {
-                if (
-                  !(await confirmAction(
-                    "Publish these changes?",
-                    "This will update the public homepage.",
-                    "Publish changes",
-                  ))
-                ) {
-                  return;
-                }
-                await runAction(() => publishLandingPageAction(content), true);
-              }}
-              type="button"
-            >
-              Publish
-            </Button>
-          </div>
+          {draftActionButtons()}
         </div>
 
         {Object.keys(fieldErrors).length > 0 && (
@@ -987,9 +1038,7 @@ export function LandingPageBuilder({
               aria-expanded={openSection === "header"}
               className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
               id="header-editor-heading"
-              onClick={() =>
-                setOpenSection((current) => current === "header" ? null : "header")
-              }
+              onClick={() => void togglePanel("header")}
               ref={(element) => {
                 sectionHeaderRefs.current.header = element;
               }}
@@ -1108,6 +1157,9 @@ export function LandingPageBuilder({
                   </div>
                 </Field>
               </FieldGroup>
+              <div className="mt-4 border-t border-border pt-3">
+                {draftActionButtons(true)}
+              </div>
             </div>
           </div>
         </section>
@@ -1131,9 +1183,7 @@ export function LandingPageBuilder({
                   aria-expanded={sectionIsOpen}
                   className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
                   id={`${section}-editor-heading`}
-                  onClick={() =>
-                    setOpenSection((current) => current === section ? null : section)
-                  }
+                  onClick={() => void togglePanel(section)}
                   ref={(element) => {
                     sectionHeaderRefs.current[section] = element;
                   }}
@@ -1597,6 +1647,9 @@ export function LandingPageBuilder({
                   </FieldGroup>
                 )}
               </FieldGroup>
+                  <div className="mt-4 border-t border-border pt-3">
+                    {draftActionButtons(true)}
+                  </div>
                 </div>
               </div>
             </section>
@@ -1611,9 +1664,7 @@ export function LandingPageBuilder({
               aria-expanded={openSection === "footer"}
               className="scroll-mt-24 w-full justify-between px-2 text-left"
               id="footer-editor-heading"
-              onClick={() =>
-                setOpenSection((current) => current === "footer" ? null : "footer")
-              }
+              onClick={() => void togglePanel("footer")}
               ref={(element) => {
                 sectionHeaderRefs.current.footer = element;
               }}
@@ -1765,6 +1816,9 @@ export function LandingPageBuilder({
                     }))}
                   />
                 </FieldGroup>
+                <div className="mt-4 border-t border-border pt-3">
+                  {draftActionButtons(true)}
+                </div>
               </div>
             </div>
           </section>
