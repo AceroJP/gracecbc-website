@@ -609,9 +609,52 @@ export function LandingPageBuilder({
             )}
           </div>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.color`]} />
+          <FieldDescription>Used when no background image is set.</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${section}-text-color`}>Section text color (optional)</FieldLabel>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              aria-label={`${sectionTitles[section]} text color`}
+              className="h-11 w-16 p-1"
+              id={`${section}-text-color`}
+              onChange={(event) => setContent((current) => ({
+                ...current,
+                sectionBackgrounds: {
+                  ...current.sectionBackgrounds,
+                  [section]: {
+                    ...current.sectionBackgrounds[section],
+                    textColor: event.target.value,
+                  },
+                },
+              }))}
+              type="color"
+              value={background.textColor || "#ffffff"}
+            />
+            <span className="text-sm text-muted-foreground">
+              {background.textColor || "Using the current text colors"}
+            </span>
+            {background.textColor && (
+              <Button
+                onClick={() => setContent((current) => ({
+                  ...current,
+                  sectionBackgrounds: {
+                    ...current.sectionBackgrounds,
+                    [section]: { ...current.sectionBackgrounds[section], textColor: "" },
+                  },
+                }))}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Clear text color
+              </Button>
+            )}
+          </div>
           <FieldDescription>
-            Choose a color that keeps the current text legible; text color controls are a separate future enhancement.
+            Applies to headings, body text, and links in this section. Choose a color with enough contrast against its background.
           </FieldDescription>
+          <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.textColor`]} />
         </Field>
         {imageFields(slot, "1920 × 1080 px", "Background image")}
         <FieldDescription>
@@ -644,6 +687,7 @@ export function LandingPageBuilder({
       backgroundPosition: "center",
       backgroundSize: "cover",
       minHeight: background.minHeight || undefined,
+      color: background.textColor || undefined,
     };
   };
 
@@ -1301,7 +1345,12 @@ export function LandingPageBuilder({
                 if (!content.visibility[section]) return null;
                 if (section === "hero" && content.hero.headline) {
                   return (
-                    <section className="rounded-xl bg-brand p-5 text-white" key={section} style={previewBackgroundStyle(section)}>
+                    <section
+                      className="rounded-xl bg-brand p-5 text-white"
+                      data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined}
+                      key={section}
+                      style={previewBackgroundStyle(section)}
+                    >
                       {content.hero.image.path && uploadedUrls.hero && (
                         <div className="relative mb-4 aspect-video overflow-hidden rounded-xl">
                           <Image
@@ -1330,7 +1379,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "welcome" && (content.welcome.text || content.welcome.image.path)) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       {content.welcome.image.path && uploadedUrls.welcome && (
                         <div className="relative mb-3 aspect-video overflow-hidden rounded-lg">
                           <Image alt={content.welcome.image.alt} className="object-cover" fill sizes="320px" src={uploadedUrls.welcome} unoptimized />
@@ -1342,7 +1391,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "schedule" && content.schedule.rows.length > 0) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Worship schedule</p>
                       {content.schedule.rows.map((row) => (
                         <p className="mt-2 text-sm text-muted-foreground" key={row.id}>
@@ -1354,7 +1403,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "livestream" && content.livestream.url) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
                       {livestreamEmbedUrl ? (
                         <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
@@ -1383,7 +1432,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "announcements" || section === "events") {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content[section].title}</p>
                       {content[section].intro && <p className="mt-2 text-sm text-muted-foreground">{content[section].intro}</p>}
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -1394,7 +1443,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "devotionals") {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Devotionals</p>
                       <p className="mt-2 text-sm text-muted-foreground">{content.devotionals.count} items linking to /devotionals</p>
                     </section>
@@ -1408,7 +1457,7 @@ export function LandingPageBuilder({
                   content.contact.mapUrl
                 )) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Contact and location</p>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {[content.contact.address, content.contact.phone, content.contact.email].filter(Boolean).join(" · ")}

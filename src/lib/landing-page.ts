@@ -60,16 +60,23 @@ const imageSchema = z.object({
 });
 
 const defaultImage = { path: null, alt: "" };
-const defaultBackground = { image: defaultImage, color: "", minHeight: 0 };
+const defaultBackground = {
+  image: defaultImage,
+  color: "",
+  textColor: "",
+  minHeight: 0,
+};
 const defaultHeroBackground = { ...defaultBackground, minHeight: 580 };
 const backgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   minHeight: z.number().int().min(0).max(1600).default(0),
 });
 const heroBackgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   minHeight: z.number().int().min(0).max(1600).default(580),
 });
 const defaultSectionBackgrounds = {
