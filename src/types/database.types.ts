@@ -45,6 +45,21 @@ export type Database = {
         };
         Relationships: [];
       };
+      landing_page_visitor_sessions: {
+        Row: {
+          session_hash: string;
+          created_at: string;
+        };
+        Insert: {
+          session_hash: string;
+          created_at?: string;
+        };
+        Update: {
+          session_hash?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       announcements: {
         Row: {
           id: string;

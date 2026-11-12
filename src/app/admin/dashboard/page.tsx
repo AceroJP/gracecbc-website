@@ -3,8 +3,11 @@ import {
   FileText,
   Images,
   PanelsTopLeft,
+  Users,
 } from "lucide-react";
 import { AuthStatusAlert } from "@/components/auth/auth-status-alert";
+import { requireAdminUser } from "@/lib/auth/server";
+import { createPrivilegedClient } from "@/lib/supabase/admin";
 
 type DashboardPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -40,6 +43,18 @@ export default async function AdminDashboardPage({
   searchParams,
 }: DashboardPageProps) {
   const params = await searchParams;
+  await requireAdminUser();
+  const supabase = createPrivilegedClient();
+  const { count: visitorCount, error: visitorCountError } = await supabase
+    .from("landing_page_visitor_sessions")
+    .select("session_hash", { count: "exact", head: true });
+
+  if (visitorCountError) {
+    throw new Error("Unable to load visitor sessions.", { cause: visitorCountError });
+  }
+  if (visitorCount === null) {
+    throw new Error("Visitor session count was not returned.");
+  }
 
   return (
     <>
@@ -66,6 +81,21 @@ export default async function AdminDashboardPage({
           Events manager active
         </span>
       </div>
+
+      <section aria-label="Visitor sessions" className="mt-8">
+        <article className="flex w-fit min-w-64 items-center gap-4 rounded-2xl border border-border bg-card p-5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
+            <Users aria-hidden="true" className="size-[18px]" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">Visitor sessions</h2>
+            <p className="mt-1 text-3xl font-semibold tabular-nums">{visitorCount}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              One count per browser tab session
+            </p>
+          </div>
+        </article>
+      </section>
 
       <section aria-label="Admin workspace areas" className="mt-9">
         <h2 className="text-sm font-semibold">Workspace areas</h2>
