@@ -318,7 +318,7 @@ export default async function Home({ searchParams }: HomeProps) {
           style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
         >
           <div className="mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 lg:px-12">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-border bg-transparent p-4 sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
