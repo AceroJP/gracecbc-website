@@ -2,22 +2,26 @@ import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import type { LandingPageContent } from "@/lib/landing-page";
 
 export function PublicFooter({
-  header,
   footer,
   contact,
 }: {
-  header: LandingPageContent["header"];
   footer: LandingPageContent["footer"];
   contact: LandingPageContent["contact"];
 }) {
-  const churchName = [header.name, header.subtitle].filter(Boolean).join(" ");
-
   return (
     <footer className="bg-brand text-white">
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-12">
+      <div
+        className="mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-12"
+        style={{ paddingBlock: footer.paddingY }}
+      >
         <div>
-          {churchName && (
-            <p className="text-base font-semibold tracking-tight">{churchName}</p>
+          {footer.title && (
+            <p
+              className="text-base font-semibold tracking-tight"
+              style={{ color: footer.textColor || undefined }}
+            >
+              {footer.title}
+            </p>
           )}
           {footer.text && (
             <p className="mt-2 text-sm leading-6" style={{ color: footer.textColor || undefined }}>

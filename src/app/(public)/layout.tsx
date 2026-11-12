@@ -27,7 +27,6 @@ export default async function PublicLayout({
       </Suspense>
       {children}
       <PublicFooter
-        header={landingPage.header}
         footer={landingPage.footer}
         contact={landingPage.contact}
       />

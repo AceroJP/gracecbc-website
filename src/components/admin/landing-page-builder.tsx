@@ -330,7 +330,7 @@ export function LandingPageBuilder({
     if (
       !(await confirmAction(
         "Reset footer settings?",
-        "The footer text and text color will return to their defaults in the draft.",
+        "The footer title, text, text color, and spacing will return to their defaults in the draft.",
         "Reset footer",
       ))
     ) {
@@ -889,7 +889,7 @@ export function LandingPageBuilder({
               </Field>
             </div>
             <FieldDescription>
-              The church name and second line are also shown in the public footer.
+              Edit the footer title separately in the Footer settings below.
             </FieldDescription>
             <Field>
               <FieldLabel htmlFor="header-logo-size">Logo placeholder size</FieldLabel>
@@ -1491,6 +1491,20 @@ export function LandingPageBuilder({
                 </div>
                 <FieldGroup className="pb-2 pt-3">
                   <Field>
+                    <FieldLabel htmlFor="footer-title">Footer title</FieldLabel>
+                    <Input
+                      aria-invalid={Boolean(fieldErrors["footer.title"])}
+                      id="footer-title"
+                      maxLength={120}
+                      onChange={(event) => setContent((current) => ({
+                        ...current,
+                        footer: { ...current.footer, title: event.target.value },
+                      }))}
+                      value={content.footer.title}
+                    />
+                    <FieldMessages messages={fieldErrors["footer.title"]} />
+                  </Field>
+                  <Field>
                     <FieldLabel htmlFor="footer-text">Footer text (optional)</FieldLabel>
                     <Textarea
                       aria-invalid={Boolean(fieldErrors["footer.text"])}
@@ -1541,9 +1555,29 @@ export function LandingPageBuilder({
                       )}
                     </div>
                     <FieldDescription>
-                      Applies to the additional footer message. Choose a color with enough contrast against the footer background.
+                      Applies to the footer title and message. Choose a color with enough contrast against the footer background.
                     </FieldDescription>
                     <FieldMessages messages={fieldErrors["footer.textColor"]} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="footer-padding">Footer vertical spacing</FieldLabel>
+                    <Input
+                      aria-valuetext={`${content.footer.paddingY} pixels above and below`}
+                      id="footer-padding"
+                      max={48}
+                      min={0}
+                      onChange={(event) => setContent((current) => ({
+                        ...current,
+                        footer: { ...current.footer, paddingY: Number(event.target.value) },
+                      }))}
+                      step={2}
+                      type="range"
+                      value={content.footer.paddingY}
+                    />
+                    <FieldDescription>
+                      {content.footer.paddingY}px above and below. Reduce this to make the public footer more compact.
+                    </FieldDescription>
+                    <FieldMessages messages={fieldErrors["footer.paddingY"]} />
                   </Field>
                 </FieldGroup>
               </div>
@@ -1747,10 +1781,18 @@ export function LandingPageBuilder({
                 }
                 return null;
               })}
-              <footer className="rounded-xl bg-brand p-4 text-white">
-                <p className="text-xs font-semibold">
-                  {[content.header.name, content.header.subtitle].filter(Boolean).join(" ")}
-                </p>
+              <footer
+                className="rounded-xl bg-brand px-4 text-white"
+                style={{ paddingBlock: content.footer.paddingY }}
+              >
+                {content.footer.title && (
+                  <p
+                    className="text-xs font-semibold"
+                    style={{ color: content.footer.textColor || undefined }}
+                  >
+                    {content.footer.title}
+                  </p>
+                )}
                 {content.footer.text && (
                   <p
                     className="mt-2 text-[10px] leading-5"

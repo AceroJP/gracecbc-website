@@ -109,8 +109,10 @@ const defaultHeader = {
   navigationOrder: [...landingPageNavigationKeys],
 };
 const defaultFooter = {
+  title: "Grace Christian Baptist Church",
   text: "",
   textColor: "",
+  paddingY: 48,
 };
 
 const builderContentSchema = z.object({
@@ -129,8 +131,10 @@ const builderContentSchema = z.object({
     ).default([...landingPageNavigationKeys]),
   }).default(defaultHeader),
   footer: z.object({
+    title: text(120).default(defaultFooter.title),
     text: text(500).default(defaultFooter.text),
     textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(defaultFooter.textColor),
+    paddingY: z.number().int().min(0).max(48).default(defaultFooter.paddingY),
   }).default(defaultFooter),
   sectionBackgrounds: z.object({
     hero: heroBackgroundSchema.default(defaultHeroBackground),
