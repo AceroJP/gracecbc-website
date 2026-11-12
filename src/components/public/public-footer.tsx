@@ -3,9 +3,11 @@ import type { LandingPageContent } from "@/lib/landing-page";
 
 export function PublicFooter({
   header,
+  footer,
   contact,
 }: {
   header: LandingPageContent["header"];
+  footer: LandingPageContent["footer"];
   contact: LandingPageContent["contact"];
 }) {
   const churchName = [header.name, header.subtitle].filter(Boolean).join(" ");
@@ -16,6 +18,11 @@ export function PublicFooter({
         <div>
           {churchName && (
             <p className="text-base font-semibold tracking-tight">{churchName}</p>
+          )}
+          {footer.text && (
+            <p className="mt-2 text-sm leading-6" style={{ color: footer.textColor || undefined }}>
+              {footer.text}
+            </p>
           )}
           {(contact.address ||
             contact.phone ||

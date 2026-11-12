@@ -108,6 +108,10 @@ const defaultHeader = {
   logoSize: 40,
   navigationOrder: [...landingPageNavigationKeys],
 };
+const defaultFooter = {
+  text: "",
+  textColor: "",
+};
 
 const builderContentSchema = z.object({
   sectionOrder: z.array(z.enum(landingPageSectionKeys)).length(8).refine(
@@ -124,6 +128,10 @@ const builderContentSchema = z.object({
       "Every navigation tab must appear once in the order.",
     ).default([...landingPageNavigationKeys]),
   }).default(defaultHeader),
+  footer: z.object({
+    text: text(500).default(defaultFooter.text),
+    textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(defaultFooter.textColor),
+  }).default(defaultFooter),
   sectionBackgrounds: z.object({
     hero: heroBackgroundSchema.default(defaultHeroBackground),
     welcome: backgroundSchema.default(defaultBackground),
@@ -250,6 +258,7 @@ export type LandingPageContent = z.infer<typeof builderContentSchema>;
 const defaultLandingPageContent: LandingPageContent = {
   sectionOrder: [...landingPageSectionKeys],
   header: defaultHeader,
+  footer: defaultFooter,
   sectionBackgrounds: defaultSectionBackgrounds,
   visibility: {
     hero: false,

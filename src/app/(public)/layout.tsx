@@ -28,6 +28,7 @@ export default async function PublicLayout({
       {children}
       <PublicFooter
         header={landingPage.header}
+        footer={landingPage.footer}
         contact={landingPage.contact}
       />
     </>

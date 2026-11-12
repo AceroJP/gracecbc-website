@@ -57,6 +57,7 @@ type ImageSlot =
   | "welcome"
   | "header-logo"
   | `background:${LandingPageSectionKey}`;
+type BuilderPanelKey = LandingPageSectionKey | "footer";
 type ScheduleRow = LandingPageContent["schedule"]["rows"][number];
 type ActionResponse = Awaited<ReturnType<typeof saveLandingPageDraftAction>>;
 
@@ -123,10 +124,8 @@ export function LandingPageBuilder({
   const [uploadedUrls, setUploadedUrls] = useState(imageUrls);
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
-  const [openSection, setOpenSection] = useState<LandingPageSectionKey | null>(null);
-  const sectionHeaderRefs = useRef<
-    Partial<Record<LandingPageSectionKey, HTMLButtonElement | null>>
-  >({});
+  const [openSection, setOpenSection] = useState<BuilderPanelKey | null>(null);
+  const sectionHeaderRefs = useRef<Partial<Record<BuilderPanelKey, HTMLButtonElement | null>>>({});
   const hasDraftChanges = useMemo(
     () => JSON.stringify(content) !== JSON.stringify(publishedContent),
     [content, publishedContent],
@@ -325,6 +324,23 @@ export function LandingPageBuilder({
     }
     setContent((current) => ({ ...current, header: getDefaultLandingPageContent().header }));
     setUploadedUrls((current) => ({ ...current, "header-logo": null }));
+  }
+
+  async function resetFooter() {
+    if (
+      !(await confirmAction(
+        "Reset footer settings?",
+        "The footer text and text color will return to their defaults in the draft.",
+        "Reset footer",
+      ))
+    ) {
+      return;
+    }
+    setContent((current) => ({
+      ...current,
+      footer: getDefaultLandingPageContent().footer,
+    }));
+    clearFieldErrors();
   }
 
   async function discardDraft() {
@@ -1417,6 +1433,122 @@ export function LandingPageBuilder({
             </section>
             );
           })}
+          <section
+            aria-labelledby="footer-editor-heading"
+            className="rounded-xl border border-border bg-card p-3 sm:p-4"
+          >
+            <Button
+              aria-controls="footer-editor-panel"
+              aria-expanded={openSection === "footer"}
+              className="scroll-mt-24 w-full justify-between px-2 text-left"
+              id="footer-editor-heading"
+              onClick={() =>
+                setOpenSection((current) => current === "footer" ? null : "footer")
+              }
+              ref={(element) => {
+                sectionHeaderRefs.current.footer = element;
+              }}
+              type="button"
+              variant="ghost"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold">Footer</span>
+                {JSON.stringify(content.footer) !== JSON.stringify(savedDraftContent.footer) && (
+                  <>
+                    <span
+                      aria-label="Unsaved changes"
+                      className="size-2 shrink-0 rounded-full bg-primary"
+                      title="Unsaved changes"
+                    />
+                    <span className="sr-only">Unsaved changes</span>
+                  </>
+                )}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${
+                  openSection === "footer" ? "rotate-180" : ""
+                }`}
+              />
+            </Button>
+            <div
+              aria-hidden={openSection !== "footer"}
+              className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+                openSection === "footer" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
+              id="footer-editor-panel"
+            >
+              <div className="min-h-0 overflow-hidden" inert={openSection !== "footer"}>
+                <div className="flex justify-end pt-3">
+                  <Button
+                    onClick={() => void resetFooter()}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Reset footer to default
+                  </Button>
+                </div>
+                <FieldGroup className="pb-2 pt-3">
+                  <Field>
+                    <FieldLabel htmlFor="footer-text">Footer text (optional)</FieldLabel>
+                    <Textarea
+                      aria-invalid={Boolean(fieldErrors["footer.text"])}
+                      id="footer-text"
+                      maxLength={500}
+                      onChange={(event) => setContent((current) => ({
+                        ...current,
+                        footer: { ...current.footer, text: event.target.value },
+                      }))}
+                      placeholder="Add a copyright or other short footer message"
+                      rows={2}
+                      value={content.footer.text}
+                    />
+                    <FieldDescription>
+                      Leave empty to show no additional footer message.
+                    </FieldDescription>
+                    <FieldMessages messages={fieldErrors["footer.text"]} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="footer-text-color">Footer text color (optional)</FieldLabel>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Input
+                        aria-label="Footer text color"
+                        className="h-11 w-16 p-1"
+                        id="footer-text-color"
+                        onChange={(event) => setContent((current) => ({
+                          ...current,
+                          footer: { ...current.footer, textColor: event.target.value },
+                        }))}
+                        type="color"
+                        value={content.footer.textColor || "#ffffff"}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {content.footer.textColor || "Using the current footer text color"}
+                      </span>
+                      {content.footer.textColor && (
+                        <Button
+                          onClick={() => setContent((current) => ({
+                            ...current,
+                            footer: { ...current.footer, textColor: "" },
+                          }))}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          Clear color
+                        </Button>
+                      )}
+                    </div>
+                    <FieldDescription>
+                      Applies to the additional footer message. Choose a color with enough contrast against the footer background.
+                    </FieldDescription>
+                    <FieldMessages messages={fieldErrors["footer.textColor"]} />
+                  </Field>
+                </FieldGroup>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -1615,6 +1747,19 @@ export function LandingPageBuilder({
                 }
                 return null;
               })}
+              <footer className="rounded-xl bg-brand p-4 text-white">
+                <p className="text-xs font-semibold">
+                  {[content.header.name, content.header.subtitle].filter(Boolean).join(" ")}
+                </p>
+                {content.footer.text && (
+                  <p
+                    className="mt-2 text-[10px] leading-5"
+                    style={{ color: content.footer.textColor || undefined }}
+                  >
+                    {content.footer.text}
+                  </p>
+                )}
+              </footer>
             </div>
           </div>
         </div>
