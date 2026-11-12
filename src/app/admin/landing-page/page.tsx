@@ -4,6 +4,7 @@ import { LandingPageBuilder } from "@/components/admin/landing-page-builder";
 import { requireAdminUser } from "@/lib/auth/server";
 import {
   getDefaultLandingPageContent,
+  landingPageSectionKeys,
   parseLandingPageContent,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
@@ -70,6 +71,17 @@ export default async function LandingPageBuilderPage() {
   const storage = supabase.storage.from("landing-page-images");
   const imageUrl = (path: string | null) =>
     path ? storage.getPublicUrl(path).data.publicUrl : null;
+  const imageUrls = (content: typeof draft) => ({
+    hero: imageUrl(content.hero.image.path),
+    welcome: imageUrl(content.welcome.image.path),
+    "header-logo": imageUrl(content.header.logo.path),
+    ...Object.fromEntries(
+      landingPageSectionKeys.map((section) => [
+        `background:${section}`,
+        imageUrl(content.sectionBackgrounds[section].image.path),
+      ]),
+    ),
+  });
 
   return (
     <>
@@ -89,15 +101,9 @@ export default async function LandingPageBuilderPage() {
       <LandingPageBuilder
         announcements={announcements}
         draft={draft}
-        imageUrls={{
-          hero: imageUrl(draft.hero.image.path),
-          welcome: imageUrl(draft.welcome.image.path),
-        }}
+        imageUrls={imageUrls(draft)}
         published={published}
-        publishedImageUrls={{
-          hero: imageUrl(published.hero.image.path),
-          welcome: imageUrl(published.welcome.image.path),
-        }}
+        publishedImageUrls={imageUrls(published)}
       />
     </>
   );

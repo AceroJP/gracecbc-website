@@ -23,9 +23,11 @@ import {
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
   getYouTubeVideoEmbedUrl,
+  getDefaultLandingPageContent,
   parseLandingPageContent,
   resetLandingPageSection,
   type LandingPageContent,
+  type LandingPageNavigationKey,
   type LandingPageSectionKey,
 } from "@/lib/landing-page";
 
@@ -43,17 +45,35 @@ const sectionTitles: Record<LandingPageSectionKey, string> = {
 type Props = {
   draft: LandingPageContent;
   published: LandingPageContent;
-  imageUrls: { hero: string | null; welcome: string | null };
-  publishedImageUrls: { hero: string | null; welcome: string | null };
+  imageUrls: Record<string, string | null>;
+  publishedImageUrls: Record<string, string | null>;
   announcements: Array<{ id: string; title: string }>;
 };
 
-type ImageSlot = "hero" | "welcome";
+type ImageSlot =
+  | "hero"
+  | "welcome"
+  | "header-logo"
+  | `background:${LandingPageSectionKey}`;
 type ScheduleRow = LandingPageContent["schedule"]["rows"][number];
 type ActionResponse = Awaited<ReturnType<typeof saveLandingPageDraftAction>>;
 
+const navigationTitles: Record<LandingPageNavigationKey, string> = {
+  events: "Events",
+  schedules: "Schedules",
+  livestream: "Livestream",
+  devotionals: "Devotionals",
+  contact: "Contact",
+};
+
 function isActionError(result: ActionResponse): result is Extract<ActionResponse, { status: "error" }> {
   return result.status === "error";
+}
+
+function imageFieldPath(slot: ImageSlot) {
+  if (slot === "hero" || slot === "welcome") return `${slot}.image`;
+  if (slot === "header-logo") return "header.logo";
+  return `sectionBackgrounds.${slot.slice("background:".length)}.image`;
 }
 
 function FieldMessages({ messages }: { messages?: string[] }) {
@@ -87,7 +107,7 @@ export function LandingPageBuilder({
   const [publishedContent, setPublishedContent] = useState(published);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
-  const [imageBusy, setImageBusy] = useState<ImageSlot | null>(null);
+  const [imageBusy, setImageBusy] = useState<string | null>(null);
   const [uploadedUrls, setUploadedUrls] = useState(imageUrls);
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
@@ -196,6 +216,54 @@ export function LandingPageBuilder({
     });
   }
 
+  function updateNavigationOrder(key: LandingPageNavigationKey, direction: -1 | 1) {
+    setContent((current) => {
+      const index = current.header.navigationOrder.indexOf(key);
+      const target = index + direction;
+      if (target < 0 || target >= current.header.navigationOrder.length) {
+        return current;
+      }
+      const navigationOrder = [...current.header.navigationOrder];
+      [navigationOrder[index], navigationOrder[target]] = [
+        navigationOrder[target],
+        navigationOrder[index],
+      ];
+      return { ...current, header: { ...current.header, navigationOrder } };
+    });
+  }
+
+  function updateImageAlt(slot: ImageSlot, alt: string) {
+    setContent((current) => {
+      if (slot === "hero" || slot === "welcome") {
+        return {
+          ...current,
+          [slot]: { ...current[slot], image: { ...current[slot].image, alt } },
+        };
+      }
+      if (slot === "header-logo") {
+        return { ...current, header: { ...current.header, logo: { ...current.header.logo, alt } } };
+      }
+      const section = slot.slice("background:".length) as LandingPageSectionKey;
+      return {
+        ...current,
+        sectionBackgrounds: {
+          ...current.sectionBackgrounds,
+          [section]: {
+            ...current.sectionBackgrounds[section],
+            image: { ...current.sectionBackgrounds[section].image, alt },
+          },
+        },
+      };
+    });
+  }
+
+  function imageForSlot(slot: ImageSlot) {
+    if (slot === "hero" || slot === "welcome") return content[slot].image;
+    if (slot === "header-logo") return content.header.logo;
+    const section = slot.slice("background:".length) as LandingPageSectionKey;
+    return content.sectionBackgrounds[section].image;
+  }
+
   async function resetSection(section: LandingPageSectionKey) {
     if (
       !(await confirmAction(
@@ -207,10 +275,25 @@ export function LandingPageBuilder({
       return;
     }
     setContent((current) => resetLandingPageSection(current, section));
+    setUploadedUrls((current) => ({ ...current, [`background:${section}`]: null }));
     if (section === "hero" || section === "welcome") {
       setUploadedUrls((current) => ({ ...current, [section]: null }));
     }
     clearFieldErrors();
+  }
+
+  async function resetHeader() {
+    if (
+      !(await confirmAction(
+        "Reset header settings?",
+        "The name, logo, logo size, and navigation order will return to their defaults in the draft.",
+        "Reset header",
+      ))
+    ) {
+      return;
+    }
+    setContent((current) => ({ ...current, header: getDefaultLandingPageContent().header }));
+    setUploadedUrls((current) => ({ ...current, "header-logo": null }));
   }
 
   async function discardDraft() {
@@ -268,20 +351,21 @@ export function LandingPageBuilder({
     const formData = new FormData(form);
     const file = formData.get("image");
     const alt = formData.get("alt");
+    const imagePath = imageFieldPath(slot);
     if (!(file instanceof File) || !file.size) {
-      setFieldErrors({ [`${slot}.image`]: ["Choose an image to upload."] });
+      setFieldErrors({ [imagePath]: ["Choose an image to upload."] });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setFieldErrors({ [`${slot}.image`]: ["Image must be 5 MB or smaller."] });
+      setFieldErrors({ [imagePath]: ["Image must be 5 MB or smaller."] });
       return;
     }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setFieldErrors({ [`${slot}.image`]: ["Use a JPG, PNG, or WebP image."] });
+      setFieldErrors({ [imagePath]: ["Use a JPG, PNG, or WebP image."] });
       return;
     }
     if (typeof alt !== "string" || !alt.trim()) {
-      setFieldErrors({ [`${slot}.image.alt`]: ["Add alt text before uploading."] });
+      setFieldErrors({ [`${imageFieldPath(slot)}.alt`]: ["Add alt text before uploading."] });
       return;
     }
 
@@ -292,7 +376,7 @@ export function LandingPageBuilder({
       const result = await uploadLandingPageImageAction(formData);
       Swal.close();
       if (result.status === "error") {
-        setFieldErrors({ [`${slot}.image`]: [result.message] });
+        setFieldErrors({ [imagePath]: [result.message] });
         await Swal.fire({
           icon: "error",
           title: "Photo upload failed",
@@ -301,10 +385,29 @@ export function LandingPageBuilder({
         });
         return;
       }
-      setContent((current) => ({
-        ...current,
-        [slot]: { ...current[slot], image: { path: result.path, alt: result.alt } },
-      }));
+      if (slot === "hero" || slot === "welcome") {
+        setContent((current) => ({
+          ...current,
+          [slot]: { ...current[slot], image: { path: result.path, alt: result.alt } },
+        }));
+      } else if (slot === "header-logo") {
+        setContent((current) => ({
+          ...current,
+          header: { ...current.header, logo: { path: result.path, alt: result.alt } },
+        }));
+      } else {
+        const section = slot.slice("background:".length) as LandingPageSectionKey;
+        setContent((current) => ({
+          ...current,
+          sectionBackgrounds: {
+            ...current.sectionBackgrounds,
+            [section]: {
+              ...current.sectionBackgrounds[section],
+              image: { path: result.path, alt: result.alt },
+            },
+          },
+        }));
+      }
       setUploadedUrls((current) => ({ ...current, [slot]: result.url }));
       form.reset();
       await Swal.fire({
@@ -316,7 +419,7 @@ export function LandingPageBuilder({
     } catch (error) {
       Swal.close();
       console.error("Landing page image upload failed.", error);
-      setFieldErrors({ [`${slot}.image`]: ["Unable to upload this image. Please try again."] });
+      setFieldErrors({ [imagePath]: ["Unable to upload this image. Please try again."] });
       await Swal.fire({
         icon: "error",
         title: "Photo upload failed",
@@ -338,34 +441,45 @@ export function LandingPageBuilder({
     ) {
       return;
     }
-    setContent((current) => ({
-      ...current,
-      [slot]: { ...current[slot], image: { path: null, alt: "" } },
-    }));
+    if (slot === "hero" || slot === "welcome") {
+      setContent((current) => ({
+        ...current,
+        [slot]: { ...current[slot], image: { path: null, alt: "" } },
+      }));
+    } else if (slot === "header-logo") {
+      setContent((current) => ({
+        ...current,
+        header: { ...current.header, logo: { path: null, alt: "" } },
+      }));
+    } else {
+      const section = slot.slice("background:".length) as LandingPageSectionKey;
+      setContent((current) => ({
+        ...current,
+        sectionBackgrounds: {
+          ...current.sectionBackgrounds,
+          [section]: {
+            ...current.sectionBackgrounds[section],
+            image: { path: null, alt: "" },
+          },
+        },
+      }));
+    }
     setUploadedUrls((current) => ({ ...current, [slot]: null }));
   }
 
-  function imageFields(slot: ImageSlot, recommendedSize: string) {
-    const image = content[slot].image;
-    const path = `${slot}.image`;
+  function imageFields(slot: ImageSlot, recommendedSize: string, label = "Photo") {
+    const image = imageForSlot(slot);
+    const path = imageFieldPath(slot);
     return (
       <div className="flex flex-col gap-3">
         <Field>
-          <FieldLabel htmlFor={`${slot}-alt`}>Photo alt text (required for upload)</FieldLabel>
+          <FieldLabel htmlFor={`${slot}-alt`}>{label} alt text (required for upload)</FieldLabel>
           <Input
             aria-invalid={Boolean(fieldErrors[`${path}.alt`])}
             id={`${slot}-alt`}
             maxLength={250}
             required={Boolean(image.path)}
-            onChange={(event) =>
-              setContent((current) => ({
-                ...current,
-                [slot]: {
-                  ...current[slot],
-                  image: { ...current[slot].image, alt: event.target.value },
-                },
-              }))
-            }
+            onChange={(event) => updateImageAlt(slot, event.target.value)}
             value={image.alt}
           />
           <FieldMessages messages={fieldErrors[`${path}.alt`]} />
@@ -421,6 +535,65 @@ export function LandingPageBuilder({
     );
   }
 
+  function backgroundFields(section: LandingPageSectionKey) {
+    const slot = `background:${section}` as const;
+    const background = content.sectionBackgrounds[section];
+    return (
+      <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border p-4">
+        <h3 className="text-sm font-semibold">Section background (optional)</h3>
+        <Field>
+          <FieldLabel htmlFor={`${section}-background-color`}>Background color</FieldLabel>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              aria-label={`${sectionTitles[section]} background color`}
+              className="h-11 w-16 p-1"
+              id={`${section}-background-color`}
+              onChange={(event) => setContent((current) => ({
+                ...current,
+                sectionBackgrounds: {
+                  ...current.sectionBackgrounds,
+                  [section]: {
+                    ...current.sectionBackgrounds[section],
+                    color: event.target.value,
+                  },
+                },
+              }))}
+              type="color"
+              value={background.color || "#ffffff"}
+            />
+            <span className="text-sm text-muted-foreground">
+              {background.color || "Using the current default"}
+            </span>
+            {background.color && (
+              <Button
+                onClick={() => setContent((current) => ({
+                  ...current,
+                  sectionBackgrounds: {
+                    ...current.sectionBackgrounds,
+                    [section]: { ...current.sectionBackgrounds[section], color: "" },
+                  },
+                }))}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Clear color
+              </Button>
+            )}
+          </div>
+          <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.color`]} />
+          <FieldDescription>
+            Choose a color that keeps the current text legible; text color controls are a separate future enhancement.
+          </FieldDescription>
+        </Field>
+        {imageFields(slot, "1920 × 1080 px", "Background image")}
+        <FieldDescription>
+          When both are set, the image is shown over this color.
+        </FieldDescription>
+      </div>
+    );
+  }
+
   function updateScheduleRow(id: string, key: keyof ScheduleRow, value: string) {
     setContent((current) => ({
       ...current,
@@ -435,6 +608,16 @@ export function LandingPageBuilder({
   const previewWidth =
     previewDevice === "mobile" ? "mx-auto max-w-[375px]" : "w-full";
   const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(content.livestream.url);
+  const previewBackgroundStyle = (section: LandingPageSectionKey) => {
+    const background = content.sectionBackgrounds[section];
+    const url = uploadedUrls[`background:${section}`];
+    return {
+      backgroundColor: background.color || undefined,
+      backgroundImage: url ? `url("${url}")` : undefined,
+      backgroundPosition: "center",
+      backgroundSize: "cover",
+    };
+  };
 
   return (
     <div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -487,6 +670,97 @@ export function LandingPageBuilder({
             Review the highlighted fields. {Object.values(fieldErrors).flat().join(" ")}
           </div>
         )}
+
+        <section
+          aria-labelledby="header-editor-heading"
+          className="mb-4 rounded-2xl border border-border bg-card p-5 sm:p-6"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold" id="header-editor-heading">
+              Navigation header
+            </h2>
+            <Button onClick={() => void resetHeader()} size="sm" type="button" variant="ghost">
+              Reset header to default
+            </Button>
+          </div>
+          <FieldGroup className="mt-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="header-name">Church name</FieldLabel>
+                <Input
+                  id="header-name"
+                  maxLength={80}
+                  onChange={(event) => setContent((current) => ({
+                    ...current,
+                    header: { ...current.header, name: event.target.value },
+                  }))}
+                  value={content.header.name}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="header-subtitle">Name second line (optional)</FieldLabel>
+                <Input
+                  id="header-subtitle"
+                  maxLength={80}
+                  onChange={(event) => setContent((current) => ({
+                    ...current,
+                    header: { ...current.header, subtitle: event.target.value },
+                  }))}
+                  value={content.header.subtitle}
+                />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="header-logo-size">Logo placeholder size</FieldLabel>
+              <Input
+                id="header-logo-size"
+                max={96}
+                min={28}
+                onChange={(event) => setContent((current) => ({
+                  ...current,
+                  header: { ...current.header, logoSize: Number(event.target.value) },
+                }))}
+                type="range"
+                value={content.header.logoSize}
+              />
+              <FieldDescription>{content.header.logoSize} × {content.header.logoSize} px</FieldDescription>
+            </Field>
+            {imageFields("header-logo", "512 × 512 px", "Logo")}
+            <Field>
+              <FieldLabel>Navigation tab order</FieldLabel>
+              <FieldDescription>Move tabs up or down. Their existing destinations remain unchanged.</FieldDescription>
+              <div className="flex flex-col gap-2">
+                {content.header.navigationOrder.map((key, index) => (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3" key={key}>
+                    <span className="text-sm font-medium">{navigationTitles[key]}</span>
+                    <div className="flex gap-2">
+                      <Button
+                        aria-label={`Move ${navigationTitles[key]} tab up`}
+                        disabled={index === 0}
+                        onClick={() => updateNavigationOrder(key, -1)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Move up
+                      </Button>
+                      <Button
+                        aria-label={`Move ${navigationTitles[key]} tab down`}
+                        disabled={index === content.header.navigationOrder.length - 1}
+                        onClick={() => updateNavigationOrder(key, 1)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Move down
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Field>
+          </FieldGroup>
+        </section>
 
         <div className="flex flex-col gap-4">
           {content.sectionOrder.map((section, index) => (
@@ -544,6 +818,7 @@ export function LandingPageBuilder({
               </div>
 
               <FieldGroup className="mt-5">
+                {backgroundFields(section)}
                 {section === "hero" && (
                   <>
                     <Field>
@@ -956,11 +1231,49 @@ export function LandingPageBuilder({
         <div className={`overflow-hidden rounded-2xl border border-border bg-background p-3 transition-[max-width] ${previewWidth}`}>
           <div className="max-h-[70vh] overflow-y-auto rounded-xl border border-border">
             <div className="flex flex-col gap-4 p-4">
+              <header className="flex items-center justify-between gap-3 border-b border-border pb-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-brand/15 bg-brand/5 text-[10px] font-bold text-brand"
+                    style={{ height: content.header.logoSize, width: content.header.logoSize }}
+                  >
+                    {uploadedUrls["header-logo"] ? (
+                      <Image
+                        alt={content.header.logo.alt}
+                        className="object-contain"
+                        fill
+                        sizes="96px"
+                        src={uploadedUrls["header-logo"]}
+                        unoptimized
+                      />
+                    ) : (
+                      "GC"
+                    )}
+                  </span>
+                  <span className="min-w-0 text-xs leading-tight font-semibold">
+                    {content.header.name}
+                    {content.header.subtitle && (
+                      <span className="block font-normal text-muted-foreground">
+                        {content.header.subtitle}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                {previewDevice === "desktop" && (
+                  <nav aria-label="Preview navigation" className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                    {content.header.navigationOrder.map((key) => (
+                      <span className="text-[10px] text-muted-foreground" key={key}>
+                        {navigationTitles[key]}
+                      </span>
+                    ))}
+                  </nav>
+                )}
+              </header>
               {content.sectionOrder.map((section) => {
                 if (!content.visibility[section]) return null;
                 if (section === "hero" && content.hero.headline) {
                   return (
-                    <section className="rounded-xl bg-brand p-5 text-white" key={section}>
+                    <section className="rounded-xl bg-brand p-5 text-white" key={section} style={previewBackgroundStyle(section)}>
                       {content.hero.image.path && uploadedUrls.hero && (
                         <div className="relative mb-4 aspect-video overflow-hidden rounded-xl">
                           <Image
@@ -989,7 +1302,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "welcome" && (content.welcome.text || content.welcome.image.path)) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       {content.welcome.image.path && uploadedUrls.welcome && (
                         <div className="relative mb-3 aspect-video overflow-hidden rounded-lg">
                           <Image alt={content.welcome.image.alt} className="object-cover" fill sizes="320px" src={uploadedUrls.welcome} unoptimized />
@@ -1001,7 +1314,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "schedule" && content.schedule.rows.length > 0) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Worship schedule</p>
                       {content.schedule.rows.map((row) => (
                         <p className="mt-2 text-sm text-muted-foreground" key={row.id}>
@@ -1013,7 +1326,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "livestream" && content.livestream.url) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
                       {livestreamEmbedUrl ? (
                         <div className="mt-3 aspect-video overflow-hidden rounded-lg bg-black">
@@ -1042,7 +1355,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "announcements" || section === "events") {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content[section].title}</p>
                       {content[section].intro && <p className="mt-2 text-sm text-muted-foreground">{content[section].intro}</p>}
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -1053,7 +1366,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "devotionals") {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Devotionals</p>
                       <p className="mt-2 text-sm text-muted-foreground">{content.devotionals.count} items linking to /devotionals</p>
                     </section>
@@ -1067,7 +1380,7 @@ export function LandingPageBuilder({
                   content.contact.mapUrl
                 )) {
                   return (
-                    <section className="rounded-xl border border-border p-4" key={section}>
+                    <section className="rounded-xl border border-border p-4" key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Contact and location</p>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {[content.contact.address, content.contact.phone, content.contact.email].filter(Boolean).join(" · ")}

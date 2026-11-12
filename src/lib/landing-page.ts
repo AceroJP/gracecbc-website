@@ -13,6 +13,16 @@ export const landingPageSectionKeys = [
 
 export type LandingPageSectionKey = (typeof landingPageSectionKeys)[number];
 
+export const landingPageNavigationKeys = [
+  "events",
+  "schedules",
+  "livestream",
+  "devotionals",
+  "contact",
+] as const;
+
+export type LandingPageNavigationKey = (typeof landingPageNavigationKeys)[number];
+
 const plainText = z.string().transform((value) =>
   value.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim(),
 );
@@ -49,11 +59,55 @@ const imageSchema = z.object({
   }
 });
 
+const defaultImage = { path: null, alt: "" };
+const defaultBackground = { image: defaultImage, color: "" };
+const backgroundSchema = z.object({
+  image: imageSchema.default(defaultImage),
+  color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+});
+const defaultSectionBackgrounds = {
+  hero: defaultBackground,
+  welcome: defaultBackground,
+  schedule: defaultBackground,
+  livestream: defaultBackground,
+  announcements: defaultBackground,
+  events: defaultBackground,
+  devotionals: defaultBackground,
+  contact: defaultBackground,
+};
+const defaultHeader = {
+  name: "Grace Christian",
+  subtitle: "Baptist Church",
+  logo: defaultImage,
+  logoSize: 40,
+  navigationOrder: [...landingPageNavigationKeys],
+};
+
 const builderContentSchema = z.object({
   sectionOrder: z.array(z.enum(landingPageSectionKeys)).length(8).refine(
     (keys) => new Set(keys).size === landingPageSectionKeys.length,
     "Every section must appear once in the order.",
   ),
+  header: z.object({
+    name: text(80).default(defaultHeader.name),
+    subtitle: text(80).default(defaultHeader.subtitle),
+    logo: imageSchema.default(defaultHeader.logo),
+    logoSize: z.number().int().min(28).max(96).default(defaultHeader.logoSize),
+    navigationOrder: z.array(z.enum(landingPageNavigationKeys)).length(5).refine(
+      (keys) => new Set(keys).size === landingPageNavigationKeys.length,
+      "Every navigation tab must appear once in the order.",
+    ).default([...landingPageNavigationKeys]),
+  }).default(defaultHeader),
+  sectionBackgrounds: z.object({
+    hero: backgroundSchema.default(defaultBackground),
+    welcome: backgroundSchema.default(defaultBackground),
+    schedule: backgroundSchema.default(defaultBackground),
+    livestream: backgroundSchema.default(defaultBackground),
+    announcements: backgroundSchema.default(defaultBackground),
+    events: backgroundSchema.default(defaultBackground),
+    devotionals: backgroundSchema.default(defaultBackground),
+    contact: backgroundSchema.default(defaultBackground),
+  }).default(defaultSectionBackgrounds),
   visibility: z.object(
     Object.fromEntries(landingPageSectionKeys.map((key) => [key, z.boolean()])) as
       Record<LandingPageSectionKey, z.ZodBoolean>,
@@ -169,6 +223,8 @@ export type LandingPageContent = z.infer<typeof builderContentSchema>;
 
 const defaultLandingPageContent: LandingPageContent = {
   sectionOrder: [...landingPageSectionKeys],
+  header: defaultHeader,
+  sectionBackgrounds: defaultSectionBackgrounds,
   visibility: {
     hero: false,
     welcome: false,
@@ -257,6 +313,10 @@ export function resetLandingPageSection(
   return {
     ...content,
     [section]: defaults[section],
+    sectionBackgrounds: {
+      ...content.sectionBackgrounds,
+      [section]: defaults.sectionBackgrounds[section],
+    },
     visibility: {
       ...content.visibility,
       [section]: defaults.visibility[section],

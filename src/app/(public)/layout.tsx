@@ -4,15 +4,20 @@ import { PublicStatusAlert } from "@/components/public/public-status-alert";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicHeader } from "@/components/public/public-header";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function PublicLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const landingPage = await getPublishedLandingPage();
+  const supabase = await createClient();
+  const logoUrl = landingPage.header.logo.path
+      ? supabase.storage.from("landing-page-images").getPublicUrl(landingPage.header.logo.path).data.publicUrl
+      : null;
 
   return (
     <>
-      <PublicHeader />
+      <PublicHeader settings={landingPage.header} logoUrl={logoUrl} />
       <Suspense fallback={null}>
         <PublicStatusAlert />
       </Suspense>

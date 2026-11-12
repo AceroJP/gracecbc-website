@@ -1,19 +1,31 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState, type MouseEvent } from "react";
+import type {
+  LandingPageContent,
+  LandingPageNavigationKey,
+} from "@/lib/landing-page";
 
-const navigation = [
-  { label: "Events", href: "/#events" },
-  { label: "Schedules", href: "/#schedules" },
-  { label: "Livestream", href: "/#livestream" },
-  { label: "Devotionals", href: "/devotionals" },
-  { label: "Contact", href: "/#contact" },
-];
+const navigationItems: Record<LandingPageNavigationKey, { label: string; href: string }> = {
+  events: { label: "Events", href: "/#events" },
+  schedules: { label: "Schedules", href: "/#schedules" },
+  livestream: { label: "Livestream", href: "/#livestream" },
+  devotionals: { label: "Devotionals", href: "/devotionals" },
+  contact: { label: "Contact", href: "/#contact" },
+};
 
-export function PublicHeader() {
+type Props = {
+  settings: LandingPageContent["header"];
+  logoUrl: string | null;
+};
+
+export function PublicHeader({ settings, logoUrl }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigation = settings.navigationOrder.map((key) => navigationItems[key]);
+  const siteName = [settings.name, settings.subtitle].filter(Boolean).join(" ");
 
   function handleMobileLoginClick(event: MouseEvent<HTMLAnchorElement>) {
     setMenuOpen(false);
@@ -28,19 +40,35 @@ export function PublicHeader() {
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-12">
         <Link
-          aria-label="Grace Christian Baptist Church home"
+          aria-label={`${siteName || "Church"} home`}
           className="flex items-center gap-3"
           href="/"
           onClick={() => setMenuOpen(false)}
         >
-          <span className="flex size-10 items-center justify-center rounded-xl border border-brand/15 bg-brand/5 text-[11px] font-bold tracking-wide text-brand">
-            GC
+          <span
+            className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-brand/15 bg-brand/5 text-[11px] font-bold tracking-wide text-brand"
+            style={{ height: settings.logoSize, width: settings.logoSize }}
+          >
+            {logoUrl ? (
+              <Image
+                alt={settings.logo.alt}
+                className="object-contain"
+                fill
+                sizes={`${settings.logoSize}px`}
+                src={logoUrl}
+                unoptimized
+              />
+            ) : (
+              "GC"
+            )}
           </span>
           <span className="max-w-40 text-sm leading-tight font-semibold tracking-tight sm:max-w-none">
-            Grace Christian
-            <span className="block font-normal text-muted-foreground">
-              Baptist Church
-            </span>
+            {settings.name}
+            {settings.subtitle && (
+              <span className="block font-normal text-muted-foreground">
+                {settings.subtitle}
+              </span>
+            )}
           </span>
         </Link>
 

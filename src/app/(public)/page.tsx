@@ -20,7 +20,10 @@ import {
 } from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
-import { getYouTubeVideoEmbedUrl } from "@/lib/landing-page";
+import {
+  getYouTubeVideoEmbedUrl,
+  type LandingPageSectionKey,
+} from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
 import { RegistrationForm } from "@/components/public/registration-form";
@@ -128,6 +131,16 @@ export default async function Home({ searchParams }: HomeProps) {
     path
       ? supabase.storage.from("landing-page-images").getPublicUrl(path).data.publicUrl
       : null;
+  const sectionBackgroundStyle = (section: LandingPageSectionKey) => {
+    const background = landingPage.sectionBackgrounds[section];
+    const url = imageUrl(background.image.path);
+    return {
+      backgroundColor: background.color || undefined,
+      backgroundImage: url ? `url("${url}")` : undefined,
+      backgroundPosition: "center",
+      backgroundSize: "cover",
+    };
+  };
   const heroImageUrl = imageUrl(landingPage.hero.image.path);
   const welcomeImageUrl = imageUrl(landingPage.welcome.image.path);
   const hasHero =
@@ -166,7 +179,7 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasHero && <section
         id="landing-page"
         className="relative isolate overflow-hidden bg-brand text-white"
-        style={{ order: landingPage.sectionOrder.indexOf("hero") }}
+        style={{ order: landingPage.sectionOrder.indexOf("hero"), ...sectionBackgroundStyle("hero") }}
       >
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_15%,rgba(147,197,190,0.2),transparent_38%),linear-gradient(125deg,transparent_45%,rgba(10,31,38,0.32))]" />
         <div className={`mx-auto grid min-h-[580px] max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:px-12 lg:py-32 ${heroImageUrl ? "lg:grid-cols-[1.15fr_0.85fr]" : ""}`}>
@@ -217,104 +230,30 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasWelcome && (
         <section
           aria-labelledby="welcome-heading"
-          className={`mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:px-10 lg:items-center lg:px-12 ${welcomeImageUrl ? "lg:grid-cols-2" : ""}`}
+          className="w-full"
           id="welcome"
-          style={{ order: landingPage.sectionOrder.indexOf("welcome") }}
+          style={{ order: landingPage.sectionOrder.indexOf("welcome"), ...sectionBackgroundStyle("welcome") }}
         >
-          <div>
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="welcome-heading">
-              Welcome
-            </h2>
-            {landingPage.welcome.text && (
-              <p className="mt-4 whitespace-pre-line text-base leading-7 text-muted-foreground">
-                {landingPage.welcome.text}
-              </p>
-            )}
-          </div>
-          {welcomeImageUrl && (
-            <div className="relative min-h-64 overflow-hidden rounded-[2rem] border border-border bg-card">
-              <Image
-                alt={landingPage.welcome.image.alt}
-                className="object-cover"
-                fill
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                src={welcomeImageUrl}
-                unoptimized
-              />
-            </div>
-          )}
-        </section>
-      )}
-
-      {hasSchedule && (
-        <section
-          aria-labelledby="worship-schedule-heading"
-          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
-          id="schedules"
-          style={{ order: landingPage.sectionOrder.indexOf("schedule") }}
-        >
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
-            Worship schedule
-          </h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {landingPage.schedule.rows.map((row) => (
-              <article className="rounded-2xl border border-border bg-card p-6" key={row.id}>
-                <p className="text-sm font-medium text-brand">{row.day}</p>
-                <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.serviceName}</h3>
-                <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock3 aria-hidden="true" className="size-4 shrink-0" />
-                  {row.time}
+          <div className={`mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:px-10 lg:items-center lg:px-12 ${welcomeImageUrl ? "lg:grid-cols-2" : ""}`}>
+            <div>
+              <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="welcome-heading">
+                Welcome
+              </h2>
+              {landingPage.welcome.text && (
+                <p className="mt-4 whitespace-pre-line text-base leading-7 text-muted-foreground">
+                  {landingPage.welcome.text}
                 </p>
-                {row.note && (
-                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                    {row.note}
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {hasLivestream && (
-        <section
-          aria-labelledby="livestream-heading"
-          className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10 lg:px-12"
-          id="livestream"
-          style={{ order: landingPage.sectionOrder.indexOf("livestream") }}
-        >
-          <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
-                  <Headphones aria-hidden="true" className="size-5" />
-                </span>
-                <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
-                  {landingPage.livestream.label || "YouTube livestream"}
-                </h2>
-              </div>
-              {!livestreamEmbedUrl && (
-                <a
-                  className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
-                  href={landingPage.livestream.url}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  Watch on YouTube
-                  <ArrowUpRight aria-hidden="true" className="size-4" />
-                </a>
               )}
             </div>
-            {livestreamEmbedUrl && (
-              <div className="aspect-video overflow-hidden rounded-xl bg-black">
-                <iframe
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  className="size-full"
-                  loading="lazy"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  src={livestreamEmbedUrl}
-                  title={landingPage.livestream.label || "YouTube livestream"}
+            {welcomeImageUrl && (
+              <div className="relative min-h-64 overflow-hidden rounded-[2rem] border border-border bg-card">
+                <Image
+                  alt={landingPage.welcome.image.alt}
+                  className="object-cover"
+                  fill
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  src={welcomeImageUrl}
+                  unoptimized
                 />
               </div>
             )}
@@ -322,13 +261,94 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
+      {hasSchedule && (
+        <section
+          aria-labelledby="worship-schedule-heading"
+          className="w-full"
+          id="schedules"
+          style={{ order: landingPage.sectionOrder.indexOf("schedule"), ...sectionBackgroundStyle("schedule") }}
+        >
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
+              Worship schedule
+            </h2>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {landingPage.schedule.rows.map((row) => (
+                <article className="rounded-2xl border border-border bg-card p-6" key={row.id}>
+                  <p className="text-sm font-medium text-brand">{row.day}</p>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.serviceName}</h3>
+                  <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock3 aria-hidden="true" className="size-4 shrink-0" />
+                    {row.time}
+                  </p>
+                  {row.note && (
+                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                      {row.note}
+                    </p>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {hasLivestream && (
+        <section
+          aria-labelledby="livestream-heading"
+          className="w-full"
+          id="livestream"
+          style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
+        >
+          <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10 lg:px-12">
+            <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
+                    <Headphones aria-hidden="true" className="size-5" />
+                  </span>
+                  <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
+                    {landingPage.livestream.label || "YouTube livestream"}
+                  </h2>
+                </div>
+                {!livestreamEmbedUrl && (
+                  <a
+                    className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
+                    href={landingPage.livestream.url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Watch on YouTube
+                    <ArrowUpRight aria-hidden="true" className="size-4" />
+                  </a>
+                )}
+              </div>
+              {livestreamEmbedUrl && (
+                <div className="aspect-video overflow-hidden rounded-xl bg-black">
+                  <iframe
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="size-full"
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    src={livestreamEmbedUrl}
+                    title={landingPage.livestream.label || "YouTube livestream"}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {hasAnnouncements && <section
         aria-labelledby="announcements-heading"
-        className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+        className="w-full"
         id="announcements"
-        style={{ order: landingPage.sectionOrder.indexOf("announcements") }}
+        style={{ order: landingPage.sectionOrder.indexOf("announcements"), ...sectionBackgroundStyle("announcements") }}
       >
-        <div className="max-w-2xl">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+          <div className="max-w-2xl">
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
             id="announcements-heading"
@@ -424,15 +444,17 @@ export default async function Home({ searchParams }: HomeProps) {
             </Link>
           </div>
         )}
+        </div>
       </section>}
 
       {hasEvents && <section
         aria-labelledby="upcoming-events-heading"
-        className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+        className="w-full"
         id="events"
-        style={{ order: landingPage.sectionOrder.indexOf("events") }}
+        style={{ order: landingPage.sectionOrder.indexOf("events"), ...sectionBackgroundStyle("events") }}
       >
-        <div className="max-w-2xl">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+          <div className="max-w-2xl">
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
             id="upcoming-events-heading"
@@ -505,15 +527,17 @@ export default async function Home({ searchParams }: HomeProps) {
             </Link>
           </div>
         )}
+        </div>
       </section>}
 
       {hasDevotionals && (
         <section
           aria-labelledby="devotionals-heading"
-          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+          className="w-full"
           id="devotionals"
-          style={{ order: landingPage.sectionOrder.indexOf("devotionals") }}
+          style={{ order: landingPage.sectionOrder.indexOf("devotionals"), ...sectionBackgroundStyle("devotionals") }}
         >
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="devotionals-heading">
@@ -557,16 +581,18 @@ export default async function Home({ searchParams }: HomeProps) {
               </Link>
             </p>
           )}
+          </div>
         </section>
       )}
 
       {hasContact && (
         <section
           aria-labelledby="contact-heading"
-          className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12"
+          className="w-full"
           id="contact"
-          style={{ order: landingPage.sectionOrder.indexOf("contact") }}
+          style={{ order: landingPage.sectionOrder.indexOf("contact"), ...sectionBackgroundStyle("contact") }}
         >
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
           <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="contact-heading">
             Contact and location
           </h2>
@@ -603,6 +629,7 @@ export default async function Home({ searchParams }: HomeProps) {
                 </a>
               )}
             </div>
+          </div>
           </div>
         </section>
       )}

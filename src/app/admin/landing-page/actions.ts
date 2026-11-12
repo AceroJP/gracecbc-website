@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/server";
 import {
   getDefaultLandingPageContent,
+  landingPageSectionKeys,
   parseLandingPageContent,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
@@ -137,6 +138,16 @@ export async function uploadLandingPageImageAction(
   const file = formData.get("image");
   const section = formData.get("section");
   const altValue = formData.get("alt");
+  const imageSection =
+    section === "hero" || section === "welcome" || section === "header-logo"
+      ? section
+      : typeof section === "string" &&
+          section.startsWith("background:") &&
+          landingPageSectionKeys.includes(
+            section.slice("background:".length) as (typeof landingPageSectionKeys)[number],
+          )
+        ? section
+        : null;
 
   if (!(file instanceof File) || file.size === 0) {
     return { status: "error", message: "Choose an image to upload." };
@@ -163,11 +174,7 @@ export async function uploadLandingPageImageAction(
     typeof altValue === "string"
       ? altValue.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim()
       : "";
-  if (
-    (section !== "hero" && section !== "welcome") ||
-    !sanitizedAlt ||
-    sanitizedAlt.length > 250
-  ) {
+  if (!imageSection || !sanitizedAlt || sanitizedAlt.length > 250) {
     return { status: "error", message: "Add descriptive alt text before uploading." };
   }
 
@@ -176,7 +183,7 @@ export async function uploadLandingPageImageAction(
     "image/png": "png",
     "image/webp": "webp",
   }[file.type];
-  const path = `${section}/${randomUUID()}.${extension}`;
+  const path = `${imageSection.replace(":", "/")}/${randomUUID()}.${extension}`;
   const supabase = await createClient();
   const { error } = await supabase.storage
     .from("landing-page-images")
