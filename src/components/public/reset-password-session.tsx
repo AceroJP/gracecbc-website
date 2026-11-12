@@ -6,8 +6,10 @@ import Swal from "sweetalert2";
 import { createClient } from "@/lib/supabase/client";
 
 export function ResetPasswordSession({
+  expectedUserId,
   children,
 }: {
+  expectedUserId: string;
   children: React.ReactNode;
 }) {
   const [ready, setReady] = useState(false);
@@ -21,34 +23,44 @@ export function ResetPasswordSession({
     const refreshToken = hash.get("refresh_token");
     const type = hash.get("type");
     const tokenExpiresAt = Number(hash.get("expires_at"));
+    const hasRecoveryTokens =
+      Boolean(accessToken) ||
+      Boolean(refreshToken) ||
+      type === "recovery";
 
     if (
       !expiresAt ||
       expiresAt <= Math.floor(Date.now() / 1000) ||
-      !accessToken ||
-      !refreshToken ||
-      type !== "recovery" ||
-      !tokenExpiresAt ||
-      tokenExpiresAt <= Math.floor(Date.now() / 1000)
+      !expectedUserId ||
+      (hasRecoveryTokens &&
+        (!accessToken ||
+          !refreshToken ||
+          type !== "recovery" ||
+          !tokenExpiresAt ||
+          tokenExpiresAt <= Math.floor(Date.now() / 1000)))
     ) {
       void Promise.resolve().then(() => setExpired(true));
       return;
     }
 
     void (async () => {
-      const { error } = await createClient().auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-      if (error) {
-        console.error("Unable to start password reset session.", error);
-        await Swal.fire({
-          icon: "error",
-          title: "Reset link is no longer available",
-          text: "Ask the church administrator to send you a new reset email.",
-          confirmButtonText: "Okay",
+      const auth = createClient().auth;
+      if (accessToken && refreshToken) {
+        const { error: setSessionError } = await auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
         });
-        setExpired(true);
+        if (setSessionError) {
+          console.error("Unable to start password reset session.", setSessionError);
+          await showExpiredMessage();
+          return;
+        }
+      }
+
+      const { data, error: userError } = await auth.getUser();
+      if (userError || data.user?.id !== expectedUserId) {
+        console.error("Unable to verify contributor password reset session.", userError);
+        await showExpiredMessage();
         return;
       }
 
@@ -59,7 +71,17 @@ export function ResetPasswordSession({
       );
       setReady(true);
     })();
-  }, []);
+
+    async function showExpiredMessage() {
+      await Swal.fire({
+        icon: "error",
+        title: "Reset link is no longer available",
+        text: "Ask the church administrator to send you a new reset email.",
+        confirmButtonText: "Okay",
+      });
+      setExpired(true);
+    }
+  }, [expectedUserId]);
 
   if (expired) {
     return (

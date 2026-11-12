@@ -516,6 +516,12 @@ Send approval and rejection notifications through the existing email integration
 
 Never include passwords, authentication tokens, or private credentials in email.
 
+The application sends approval and rejection notices through server-side SMTP.
+Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`
+in the deployment environment. Keep `SMTP_PASS` server-only; never use a
+`NEXT_PUBLIC_` prefix. Supabase Auth SMTP settings are separate and do not
+provide a general-purpose email API to the application.
+
 # 11. EMAIL NOTIFICATIONS
 
 Inspect whether the existing project already has an email provider or Supabase SMTP configuration.

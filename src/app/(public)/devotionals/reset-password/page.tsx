@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, KeyRound } from "lucide-react";
+import { isContributorResetLinkValid } from "@/lib/auth/contributor-reset-link";
 import { ResetPasswordForm } from "@/components/public/reset-password-form";
 import { ResetPasswordSession } from "@/components/public/reset-password-session";
 
@@ -11,10 +12,20 @@ export const metadata: Metadata = {
 export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    reset_expires?: string;
+    reset_signature?: string;
+    reset_user?: string;
+  }>;
 }) {
   const params = await searchParams;
-  const expired = params.error === "expired";
+  const resetLinkIsValid = isContributorResetLinkValid(
+    params.reset_user,
+    params.reset_expires,
+    params.reset_signature,
+  );
+  const expired = params.error === "expired" || !resetLinkIsValid;
 
   return (
     <main className="flex min-h-[calc(100dvh-76px)] items-center justify-center bg-foreground/5 px-3 py-6 sm:px-6 sm:py-10">
@@ -53,7 +64,7 @@ export default async function ResetPasswordPage({
               Return to devotionals
             </Link>
           ) : (
-            <ResetPasswordSession>
+            <ResetPasswordSession expectedUserId={params.reset_user ?? ""}>
               <ResetPasswordForm />
             </ResetPasswordSession>
           )}

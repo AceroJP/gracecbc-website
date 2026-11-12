@@ -1,14 +1,14 @@
 "use server";
 
-import { createHmac } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { requireAdminUser } from "@/lib/auth/server";
+import { createContributorResetSignature } from "@/lib/auth/contributor-reset-link";
+import { sendContributorApplicationNotification } from "@/lib/email/smtp";
 import { createPrivilegedClient } from "@/lib/supabase/admin";
 import { getSupabasePublicEnv } from "@/lib/env";
-import { getSupabaseSecretKey } from "@/lib/env.server";
 
 const devotionalActionSchema = z.object({
   id: z.uuid(),
@@ -292,8 +292,58 @@ export async function reviewContributorApplicationAction(
     applicationStatus,
     { reason: parsed.data.reason },
   );
+
+  let notificationAcceptedBySmtp = false;
+  if (
+    parsed.data.action === "approve" ||
+    parsed.data.action === "reactivate" ||
+    parsed.data.action === "reject"
+  ) {
+    const contributor = Array.isArray(application.devotional_contributors)
+      ? application.devotional_contributors[0]
+      : application.devotional_contributors;
+    const decision =
+      parsed.data.action === "reject" ? "rejected" : "approved";
+
+    try {
+      if (!contributor?.auth_user_id) {
+        throw new Error("Contributor Auth account is missing.");
+      }
+
+      const { data: authUser, error: authLookupError } =
+        await client.auth.admin.getUserById(contributor.auth_user_id);
+      const email = authUser.user?.email;
+      if (authLookupError || !email) {
+        throw new Error("Contributor email could not be loaded.", {
+          cause: authLookupError,
+        });
+      }
+
+      await sendContributorApplicationNotification({ to: email, decision });
+      notificationAcceptedBySmtp = true;
+    } catch (error) {
+      console.error("Contributor application notice was not accepted by SMTP.", {
+        applicationId: parsed.data.id,
+        decision,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message }
+            : { message: "Unknown SMTP error." },
+      });
+      return {
+        status: "error",
+        message: `The application was ${applicationStatus}, but its email notice was not accepted. Check the SMTP settings, then retry this action.`,
+      };
+    }
+  }
+
   revalidatePath("/admin/devotionals");
-  return { status: "success", message: "Contributor application was reviewed." };
+  return {
+    status: "success",
+    message: notificationAcceptedBySmtp
+      ? "Contributor application was reviewed, and the notice was accepted by SMTP."
+      : "Contributor application was reviewed.",
+  };
 }
 
 export async function updateContributorAction(
@@ -418,7 +468,8 @@ export async function sendContributorPasswordResetAction(
   const { data: authUser, error: authLookupError } =
     await client.auth.admin.getUserById(contributor.auth_user_id);
   const email = authUser.user?.email;
-  if (authLookupError || !email) {
+  const authUserId = authUser.user?.id;
+  if (authLookupError || !email || !authUserId) {
     throw new Error("Unable to load contributor email.", { cause: authLookupError });
   }
 
@@ -435,12 +486,21 @@ export async function sendContributorPasswordResetAction(
     { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
   );
   const resetExpiresAt = Math.floor(Date.now() / 1000) + resetLinkLifetimeSeconds;
-  const resetSignature = createHmac("sha256", getSupabaseSecretKey())
-    .update(String(resetExpiresAt))
-    .digest("hex");
-  const redirectTo = `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${host}/auth/callback?next=/devotionals/reset-password&reset_expires=${resetExpiresAt}&reset_signature=${resetSignature}`;
+  const resetExpires = String(resetExpiresAt);
+  const resetSignature = createContributorResetSignature(
+    authUserId,
+    resetExpires,
+  );
+  const redirectTo = new URL(
+    "/auth/callback",
+    `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${host}`,
+  );
+  redirectTo.searchParams.set("next", "/devotionals/reset-password");
+  redirectTo.searchParams.set("reset_user", authUserId);
+  redirectTo.searchParams.set("reset_expires", resetExpires);
+  redirectTo.searchParams.set("reset_signature", resetSignature);
   const { error: resetError } = await authClient.auth.resetPasswordForEmail(email, {
-    redirectTo,
+    redirectTo: redirectTo.toString(),
   });
   if (resetError) {
     throw new Error("Unable to send contributor password reset email.", {
