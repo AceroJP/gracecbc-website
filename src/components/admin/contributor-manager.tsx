@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { KeyRound, Pencil, Users } from "lucide-react";
+import { KeyRound, Pencil, Trash2, Users } from "lucide-react";
 import Swal from "sweetalert2";
 import {
+  deleteContributorAction,
   reviewContributorApplicationAction,
   sendContributorPasswordResetAction,
   updateContributorAction,
@@ -85,39 +86,53 @@ export function ContributorManager({
     <div className="flex flex-col gap-8">
       <section>
         <SectionHeading title="Contributor accounts" description="Manage contributor details and password help." count={contributors.length} />
-        <div className="grid gap-4">
+        <div className="divide-y overflow-hidden rounded-xl border border-border bg-card">
           {contributors.map((contributor) => (
-            <Card key={contributor.id}>
-              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold">{contributor.full_name}</p>
-                  <p className="text-sm text-muted-foreground">@{contributor.username} · {contributor.email}</p>
-                  <p className="mt-1 text-xs capitalize text-muted-foreground">
-                    {contributor.status.replaceAll("_", " ")} · {contributor.email_verified_at ? "Email verified" : "Email not verified"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <EditContributorDialog contributor={contributor} pending={pending} onSubmit={submit} />
-                  <Button
-                    disabled={pending}
-                    onClick={() => void confirmAndSubmit(
-                      `Send a password reset email to ${contributor.email}?`,
-                      contributor.id,
-                      sendContributorPasswordResetAction,
-                      submit,
-                    )}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <KeyRound />
-                    Send reset email
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between" key={contributor.id}>
+              <div className="min-w-0">
+                <p className="font-medium">{contributor.full_name}</p>
+                <p className="truncate text-sm text-muted-foreground">@{contributor.username} · {contributor.email}</p>
+                <p className="text-xs capitalize text-muted-foreground">
+                  {contributor.status.replaceAll("_", " ")} · {contributor.email_verified_at ? "Email verified" : "Email not verified"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <EditContributorDialog contributor={contributor} pending={pending} onSubmit={submit} />
+                <Button
+                  disabled={pending}
+                  onClick={() => void confirmAndSubmit(
+                    `Send a password reset email to ${contributor.email}?`,
+                    contributor.id,
+                    sendContributorPasswordResetAction,
+                    submit,
+                  )}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <KeyRound />
+                  Send reset email
+                </Button>
+                <Button
+                  disabled={pending}
+                  onClick={() => void confirmAndSubmit(
+                    `Permanently delete ${contributor.full_name} (@${contributor.username}), their contributor account, and all their devotionals and related data? This cannot be undone.`,
+                    contributor.id,
+                    deleteContributorAction,
+                    submit,
+                    true,
+                  )}
+                  size="sm"
+                  type="button"
+                  variant="destructive"
+                >
+                  <Trash2 />
+                  Delete
+                </Button>
+              </div>
+            </div>
           ))}
-          {contributors.length === 0 && <EmptyState label="No contributor accounts yet." />}
+          {contributors.length === 0 && <div className="p-3"><EmptyState label="No contributor accounts yet." /></div>}
         </div>
       </section>
 
@@ -201,14 +216,15 @@ function EditContributorDialog({ contributor, pending, onSubmit }: { contributor
   );
 }
 
-async function confirmAndSubmit(text: string, id: string, handler: AdminAction, onSubmit: (action: AdminAction, form: FormData) => void) {
+async function confirmAndSubmit(text: string, id: string, handler: AdminAction, onSubmit: (action: AdminAction, form: FormData) => void, destructive = false) {
   const confirmation = await Swal.fire({
-    icon: "question",
+    icon: destructive ? "warning" : "question",
     title: "Confirm action",
     text,
     showCancelButton: true,
     confirmButtonText: "Continue",
     cancelButtonText: "Cancel",
+    confirmButtonColor: destructive ? "#b91c1c" : undefined,
     reverseButtons: true,
   });
   if (!confirmation.isConfirmed) return;

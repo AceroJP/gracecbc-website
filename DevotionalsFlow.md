@@ -502,6 +502,9 @@ Administrator actions:
 - Reactivate contributor.
 - View contributor's devotionals.
 - Review application history.
+- Delete a contributor account after explicit confirmation.
+
+Deleting a contributor account permanently deletes its Supabase Auth user, contributor profile, applications, devotionals, reactions, reports, and submission grants. Do not allow this action for administrator accounts, and record the deletion in the audit log.
 
 Suspended contributors must not be able to submit new devotionals.
 
@@ -1032,7 +1035,7 @@ Follow these rules throughout development:
 - Prefer simple, maintainable solutions.
 - Keep the original GCBC website visual identity.
 - Reuse existing components and utilities where appropriate.
-- Do not delete existing data.
+- Do not delete existing data except when an administrator explicitly confirms contributor-account deletion; remove all associated records according to the documented cascade behavior.
 - Do not bypass RLS.
 - Do not expose secrets.
 - Do not claim an implementation is complete when it is only partially implemented.

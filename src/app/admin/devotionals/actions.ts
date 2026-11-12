@@ -32,6 +32,7 @@ const contributorUpdateSchema = z.object({
   status: z.enum(["approved", "suspended"]),
 });
 const contributorResetSchema = z.object({ id: z.uuid() });
+const contributorDeleteSchema = z.object({ id: z.uuid() });
 const resetLinkLifetimeSeconds = 60 * 60;
 
 type ActionResult = { status: "success" | "error"; message: string };
@@ -458,4 +459,72 @@ export async function sendContributorPasswordResetAction(
     { email },
   );
   return { status: "success", message: `A password reset email was sent to ${email}.` };
+}
+
+export async function deleteContributorAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const admin = await requireAdminUser();
+  const parsed = contributorDeleteSchema.safeParse({
+    id: formData.get("id"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Invalid contributor deletion request." };
+  }
+
+  const client = createPrivilegedClient();
+  const { data: contributor, error: contributorError } = await client
+    .from("devotional_contributors")
+    .select("id, auth_user_id, username, status")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (contributorError) {
+    throw new Error("Unable to load contributor for deletion.", {
+      cause: contributorError,
+    });
+  }
+  if (!contributor) {
+    return { status: "error", message: "That contributor no longer exists." };
+  }
+
+  const { data: authAccount, error: authLookupError } =
+    await client.auth.admin.getUserById(contributor.auth_user_id);
+  if (authLookupError || !authAccount.user) {
+    throw new Error("Unable to load contributor Auth account for deletion.", {
+      cause: authLookupError,
+    });
+  }
+  if (authAccount.user.app_metadata.role === "admin") {
+    return {
+      status: "error",
+      message: "Administrator accounts cannot be deleted from contributor management.",
+    };
+  }
+
+  const { error: deleteError } = await client.auth.admin.deleteUser(
+    contributor.auth_user_id,
+    false,
+  );
+  if (deleteError) {
+    throw new Error("Unable to delete contributor account.", {
+      cause: deleteError,
+    });
+  }
+
+  await writeAudit(
+    client,
+    admin.id,
+    "delete",
+    "contributor",
+    contributor.id,
+    contributor.status,
+    null,
+    { username: contributor.username, associated_content_deleted: "true" },
+  );
+  revalidatePath("/admin/devotionals");
+  revalidatePath("/devotionals");
+  return {
+    status: "success",
+    message: `Contributor @${contributor.username} and all associated devotional content were permanently deleted.`,
+  };
 }
