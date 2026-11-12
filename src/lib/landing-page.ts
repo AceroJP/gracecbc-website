@@ -13,6 +13,28 @@ export const landingPageSectionKeys = [
 
 export type LandingPageSectionKey = (typeof landingPageSectionKeys)[number];
 
+export const landingPageTextAlignments = [
+  "inherit",
+  "left",
+  "center",
+  "right",
+  "justify",
+] as const;
+export type LandingPageTextAlignment = (typeof landingPageTextAlignments)[number];
+
+export const landingPageThemeFonts = [
+  "inherit",
+  "theme-sans",
+  "theme-mono",
+] as const;
+export type LandingPageThemeFont = (typeof landingPageThemeFonts)[number];
+
+export function getLandingPageFontFamily(font: LandingPageThemeFont) {
+  if (font === "theme-sans") return "var(--font-sans)";
+  if (font === "theme-mono") return "var(--font-mono)";
+  return undefined;
+}
+
 export type LandingPageBackgroundStyleVariables = {
   "--landing-section-background-image": string;
   "--landing-section-background-opacity": number;
@@ -70,6 +92,8 @@ const defaultBackground = {
   image: defaultImage,
   color: "",
   textColor: "",
+  textAlign: "inherit" as const,
+  fontFamily: "inherit" as const,
   minHeight: 0,
   imageOpacity: 100,
   imageBlur: 0,
@@ -79,6 +103,8 @@ const backgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  textAlign: z.enum(landingPageTextAlignments).default("inherit"),
+  fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
   minHeight: z.number().int().min(0).max(1600).default(0),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
@@ -87,6 +113,8 @@ const heroBackgroundSchema = z.object({
   image: imageSchema.default(defaultImage),
   color: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  textAlign: z.enum(landingPageTextAlignments).default("inherit"),
+  fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
   minHeight: z.number().int().min(0).max(1600).default(580),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
@@ -112,6 +140,8 @@ const defaultFooter = {
   title: "Grace Christian Baptist Church",
   text: "",
   textColor: "",
+  textAlign: "inherit" as const,
+  fontFamily: "inherit" as const,
   paddingY: 48,
 };
 
@@ -134,6 +164,8 @@ const builderContentSchema = z.object({
     title: text(120).default(defaultFooter.title),
     text: text(500).default(defaultFooter.text),
     textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(defaultFooter.textColor),
+    textAlign: z.enum(landingPageTextAlignments).default("inherit"),
+    fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
     paddingY: z.number().int().min(0).max(48).default(defaultFooter.paddingY),
   }).default(defaultFooter),
   sectionBackgrounds: z.object({

@@ -23,7 +23,10 @@ import {
 } from "@/components/ui/field";
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
+  getLandingPageFontFamily,
   getYouTubeVideoEmbedUrl,
+  landingPageTextAlignments,
+  landingPageThemeFonts,
   type LandingPageBackgroundStyleVariables,
   getDefaultLandingPageContent,
   parseLandingPageContent,
@@ -31,6 +34,8 @@ import {
   type LandingPageContent,
   type LandingPageNavigationKey,
   type LandingPageSectionKey,
+  type LandingPageTextAlignment,
+  type LandingPageThemeFont,
 } from "@/lib/landing-page";
 
 const sectionTitles: Record<LandingPageSectionKey, string> = {
@@ -105,6 +110,73 @@ async function confirmAction(title: string, text: string, confirmButtonText: str
   });
 
   return result.isConfirmed;
+}
+
+function TextStyleFields({
+  idPrefix,
+  fieldPrefix,
+  textAlign,
+  fontFamily,
+  fieldErrors,
+  onChange,
+}: {
+  idPrefix: string;
+  fieldPrefix: string;
+  textAlign: LandingPageTextAlignment;
+  fontFamily: LandingPageThemeFont;
+  fieldErrors: Record<string, string[]>;
+  onChange: (
+    field: "textAlign" | "fontFamily",
+    value: LandingPageTextAlignment | LandingPageThemeFont,
+  ) => void;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-text-align`}>Text alignment</FieldLabel>
+        <select
+          aria-invalid={Boolean(fieldErrors[`${fieldPrefix}.textAlign`])}
+          className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+          id={`${idPrefix}-text-align`}
+          onChange={(event) => {
+            const value = landingPageTextAlignments.find(
+              (alignment) => alignment === event.target.value,
+            );
+            if (value) onChange("textAlign", value);
+          }}
+          value={textAlign}
+        >
+          <option value="inherit">Theme default</option>
+          <option value="left">Align Left</option>
+          <option value="center">Center</option>
+          <option value="right">Align Right</option>
+          <option value="justify">Justify</option>
+        </select>
+        <FieldMessages messages={fieldErrors[`${fieldPrefix}.textAlign`]} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-font-family`}>Theme font</FieldLabel>
+        <select
+          aria-invalid={Boolean(fieldErrors[`${fieldPrefix}.fontFamily`])}
+          className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+          id={`${idPrefix}-font-family`}
+          onChange={(event) => {
+            const value = landingPageThemeFonts.find(
+              (font) => font === event.target.value,
+            );
+            if (value) onChange("fontFamily", value);
+          }}
+          value={fontFamily}
+        >
+          <option value="inherit">Theme default</option>
+          <option value="theme-sans">Theme Sans (Geist)</option>
+          <option value="theme-mono">Theme Mono (Geist Mono)</option>
+        </select>
+        <FieldDescription>Uses the fonts already loaded by this site theme.</FieldDescription>
+        <FieldMessages messages={fieldErrors[`${fieldPrefix}.fontFamily`]} />
+      </Field>
+    </div>
+  );
 }
 
 export function LandingPageBuilder({
@@ -761,6 +833,20 @@ export function LandingPageBuilder({
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.textColor`]} />
         </Field>
+        <TextStyleFields
+          fieldErrors={fieldErrors}
+          fieldPrefix={`sectionBackgrounds.${section}`}
+          fontFamily={background.fontFamily}
+          idPrefix={section}
+          onChange={(field, value) => setContent((current) => ({
+            ...current,
+            sectionBackgrounds: {
+              ...current.sectionBackgrounds,
+              [section]: { ...current.sectionBackgrounds[section], [field]: value },
+            },
+          }))}
+          textAlign={background.textAlign}
+        />
         <FieldDescription>
           When both are set, the image is shown over this color.
         </FieldDescription>
@@ -794,6 +880,15 @@ export function LandingPageBuilder({
       backgroundColor: background.color || undefined,
       minHeight: background.minHeight || undefined,
       color: background.textColor || undefined,
+      textAlign: background.textAlign === "inherit" ? undefined : background.textAlign,
+      fontFamily: getLandingPageFontFamily(background.fontFamily),
+    };
+  };
+  const sectionTypographyAttributes = (section: LandingPageSectionKey) => {
+    const appearance = content.sectionBackgrounds[section];
+    return {
+      "data-section-text-align": appearance.textAlign === "inherit" ? undefined : "true",
+      "data-section-font-family": appearance.fontFamily === "inherit" ? undefined : "true",
     };
   };
 
@@ -1579,6 +1674,17 @@ export function LandingPageBuilder({
                     </FieldDescription>
                     <FieldMessages messages={fieldErrors["footer.paddingY"]} />
                   </Field>
+                  <TextStyleFields
+                    fieldErrors={fieldErrors}
+                    fieldPrefix="footer"
+                    fontFamily={content.footer.fontFamily}
+                    idPrefix="footer"
+                    onChange={(field, value) => setContent((current) => ({
+                      ...current,
+                      footer: { ...current.footer, [field]: value },
+                    }))}
+                    textAlign={content.footer.textAlign}
+                  />
                 </FieldGroup>
               </div>
             </div>
@@ -1662,6 +1768,7 @@ export function LandingPageBuilder({
                       className="rounded-xl bg-brand p-5 text-white"
                       data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined}
                       data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined}
+                      {...sectionTypographyAttributes(section)}
                       key={section}
                       style={previewBackgroundStyle(section)}
                     >
@@ -1693,7 +1800,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "welcome" && (content.welcome.text || content.welcome.image.path)) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       {content.welcome.image.path && uploadedUrls.welcome && (
                         <div className="relative mb-3 aspect-video overflow-hidden rounded-lg">
                           <Image alt={content.welcome.image.alt} className="object-cover" fill sizes="320px" src={uploadedUrls.welcome} unoptimized />
@@ -1705,7 +1812,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "schedule" && content.schedule.rows.length > 0) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Worship schedule</p>
                       {content.schedule.rows.map((row) => (
                         <p className="mt-2 text-sm text-muted-foreground" key={row.id}>
@@ -1717,7 +1824,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "livestream" && content.livestream.url) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
                       {livestreamEmbedUrl ? (
                         <div className="mx-auto mt-3 aspect-video w-full max-w-3xl overflow-hidden rounded-lg bg-black">
@@ -1746,7 +1853,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "announcements" || section === "events") {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">{content[section].title}</p>
                       {content[section].intro && <p className="mt-2 text-sm text-muted-foreground">{content[section].intro}</p>}
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -1757,7 +1864,7 @@ export function LandingPageBuilder({
                 }
                 if (section === "devotionals") {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Devotionals</p>
                       <p className="mt-2 text-sm text-muted-foreground">{content.devotionals.count} items linking to /devotionals</p>
                     </section>
@@ -1783,7 +1890,13 @@ export function LandingPageBuilder({
               })}
               <footer
                 className="rounded-xl bg-brand px-4 text-white"
-                style={{ paddingBlock: content.footer.paddingY }}
+                data-section-text-align={content.footer.textAlign === "inherit" ? undefined : "true"}
+                data-section-font-family={content.footer.fontFamily === "inherit" ? undefined : "true"}
+                style={{
+                  paddingBlock: content.footer.paddingY,
+                  textAlign: content.footer.textAlign === "inherit" ? undefined : content.footer.textAlign,
+                  fontFamily: getLandingPageFontFamily(content.footer.fontFamily),
+                }}
               >
                 {content.footer.title && (
                   <p

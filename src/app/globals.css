@@ -131,6 +131,14 @@ body {
   color: inherit !important;
 }
 
+[data-section-text-align] * {
+  text-align: inherit !important;
+}
+
+[data-section-font-family] * {
+  font-family: inherit !important;
+}
+
 html {
   scroll-behavior: smooth;
 }

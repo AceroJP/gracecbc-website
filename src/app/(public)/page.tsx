@@ -22,6 +22,7 @@ import {
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import {
+  getLandingPageFontFamily,
   getYouTubeVideoEmbedUrl,
   type LandingPageBackgroundStyleVariables,
   type LandingPageSectionKey,
@@ -145,6 +146,15 @@ export default async function Home({ searchParams }: HomeProps) {
       backgroundColor: background.color || undefined,
       minHeight: background.minHeight || undefined,
       color: background.textColor || undefined,
+      textAlign: background.textAlign === "inherit" ? undefined : background.textAlign,
+      fontFamily: getLandingPageFontFamily(background.fontFamily),
+    };
+  };
+  const sectionTypographyAttributes = (section: LandingPageSectionKey) => {
+    const appearance = landingPage.sectionBackgrounds[section];
+    return {
+      "data-section-text-align": appearance.textAlign === "inherit" ? undefined : "true",
+      "data-section-font-family": appearance.fontFamily === "inherit" ? undefined : "true",
     };
   };
   const heroImageUrl = imageUrl(landingPage.hero.image.path);
@@ -187,6 +197,7 @@ export default async function Home({ searchParams }: HomeProps) {
         className="relative isolate overflow-hidden bg-brand text-white"
         data-section-background={landingPage.sectionBackgrounds.hero.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.hero.textColor ? "true" : undefined}
+        {...sectionTypographyAttributes("hero")}
         style={{ order: landingPage.sectionOrder.indexOf("hero"), ...sectionBackgroundStyle("hero") }}
       >
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_15%,rgba(147,197,190,0.2),transparent_38%),linear-gradient(125deg,transparent_45%,rgba(10,31,38,0.32))]" />
@@ -244,6 +255,7 @@ export default async function Home({ searchParams }: HomeProps) {
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.welcome.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.welcome.textColor ? "true" : undefined}
+          {...sectionTypographyAttributes("welcome")}
           id="welcome"
           style={{ order: landingPage.sectionOrder.indexOf("welcome"), ...sectionBackgroundStyle("welcome") }}
         >
@@ -280,6 +292,7 @@ export default async function Home({ searchParams }: HomeProps) {
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.schedule.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.schedule.textColor ? "true" : undefined}
+          {...sectionTypographyAttributes("schedule")}
           id="schedules"
           style={{ order: landingPage.sectionOrder.indexOf("schedule"), ...sectionBackgroundStyle("schedule") }}
         >
@@ -314,6 +327,7 @@ export default async function Home({ searchParams }: HomeProps) {
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.livestream.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.livestream.textColor ? "true" : undefined}
+          {...sectionTypographyAttributes("livestream")}
           id="livestream"
           style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
         >
@@ -363,6 +377,7 @@ export default async function Home({ searchParams }: HomeProps) {
         className="w-full"
         data-section-background={landingPage.sectionBackgrounds.announcements.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.announcements.textColor ? "true" : undefined}
+        {...sectionTypographyAttributes("announcements")}
         id="announcements"
         style={{ order: landingPage.sectionOrder.indexOf("announcements"), ...sectionBackgroundStyle("announcements") }}
       >
@@ -471,6 +486,7 @@ export default async function Home({ searchParams }: HomeProps) {
         className="w-full"
         data-section-background={landingPage.sectionBackgrounds.events.image.path ? "true" : undefined}
         data-section-custom-text={landingPage.sectionBackgrounds.events.textColor ? "true" : undefined}
+        {...sectionTypographyAttributes("events")}
         id="events"
         style={{ order: landingPage.sectionOrder.indexOf("events"), ...sectionBackgroundStyle("events") }}
       >
@@ -557,6 +573,7 @@ export default async function Home({ searchParams }: HomeProps) {
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.devotionals.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.devotionals.textColor ? "true" : undefined}
+          {...sectionTypographyAttributes("devotionals")}
           id="devotionals"
           style={{ order: landingPage.sectionOrder.indexOf("devotionals"), ...sectionBackgroundStyle("devotionals") }}
         >
@@ -614,6 +631,7 @@ export default async function Home({ searchParams }: HomeProps) {
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.contact.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.contact.textColor ? "true" : undefined}
+          {...sectionTypographyAttributes("contact")}
           id="contact"
           style={{ order: landingPage.sectionOrder.indexOf("contact"), ...sectionBackgroundStyle("contact") }}
         >
