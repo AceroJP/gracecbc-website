@@ -41,6 +41,54 @@ export type LandingPageBackgroundStyleVariables = {
   "--landing-section-background-blur": string;
 };
 
+export type LandingPageTypographyStyleVariables = {
+  "--text-xs": string;
+  "--text-sm": string;
+  "--text-base": string;
+  "--text-lg": string;
+  "--text-xl": string;
+  "--text-2xl": string;
+  "--text-3xl": string;
+  "--text-4xl": string;
+  "--text-5xl": string;
+  "--text-6xl": string;
+  "--text-7xl": string;
+  "--text-8xl": string;
+  "--text-9xl": string;
+  "--landing-section-text-size-10px": string;
+  "--landing-section-text-size-11px": string;
+  "--landing-section-text-size-15px": string;
+  "--landing-section-text-size-0-8rem": string;
+};
+
+export function getLandingPageTypographyStyleVariables(
+  fontSizeScale: number,
+): LandingPageTypographyStyleVariables {
+  const scale = fontSizeScale / 100;
+  const rem = (size: number) => `${Number((size * scale).toFixed(4))}rem`;
+  const px = (size: number) => `${Number((size * scale).toFixed(4))}px`;
+
+  return {
+    "--text-xs": rem(0.75),
+    "--text-sm": rem(0.875),
+    "--text-base": rem(1),
+    "--text-lg": rem(1.125),
+    "--text-xl": rem(1.25),
+    "--text-2xl": rem(1.5),
+    "--text-3xl": rem(1.875),
+    "--text-4xl": rem(2.25),
+    "--text-5xl": rem(3),
+    "--text-6xl": rem(3.75),
+    "--text-7xl": rem(4.5),
+    "--text-8xl": rem(6),
+    "--text-9xl": rem(8),
+    "--landing-section-text-size-10px": px(10),
+    "--landing-section-text-size-11px": px(11),
+    "--landing-section-text-size-15px": px(15),
+    "--landing-section-text-size-0-8rem": rem(0.8),
+  };
+}
+
 export const landingPageNavigationKeys = [
   "events",
   "schedules",
@@ -94,6 +142,7 @@ const defaultBackground = {
   textColor: "",
   textAlign: "inherit" as const,
   fontFamily: "inherit" as const,
+  fontSizeScale: 100,
   minHeight: 0,
   imageOpacity: 100,
   imageBlur: 0,
@@ -105,6 +154,7 @@ const backgroundSchema = z.object({
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textAlign: z.enum(landingPageTextAlignments).default("inherit"),
   fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
+  fontSizeScale: z.number().int().min(75).max(150).default(100),
   minHeight: z.number().int().min(0).max(1600).default(0),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
@@ -115,6 +165,7 @@ const heroBackgroundSchema = z.object({
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
   textAlign: z.enum(landingPageTextAlignments).default("inherit"),
   fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
+  fontSizeScale: z.number().int().min(75).max(150).default(100),
   minHeight: z.number().int().min(0).max(1600).default(580),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
@@ -142,6 +193,7 @@ const defaultFooter = {
   textColor: "",
   textAlign: "inherit" as const,
   fontFamily: "inherit" as const,
+  fontSizeScale: 100,
   paddingY: 48,
 };
 
@@ -166,6 +218,7 @@ const builderContentSchema = z.object({
     textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(defaultFooter.textColor),
     textAlign: z.enum(landingPageTextAlignments).default("inherit"),
     fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
+    fontSizeScale: z.number().int().min(75).max(150).default(100),
     paddingY: z.number().int().min(0).max(48).default(defaultFooter.paddingY),
   }).default(defaultFooter),
   sectionBackgrounds: z.object({

@@ -24,6 +24,7 @@ import {
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
   getLandingPageFontFamily,
+  getLandingPageTypographyStyleVariables,
   getYouTubeVideoEmbedUrl,
   landingPageTextAlignments,
   landingPageThemeFonts,
@@ -35,6 +36,7 @@ import {
   type LandingPageNavigationKey,
   type LandingPageSectionKey,
   type LandingPageTextAlignment,
+  type LandingPageTypographyStyleVariables,
   type LandingPageThemeFont,
 } from "@/lib/landing-page";
 
@@ -117,18 +119,22 @@ function TextStyleFields({
   fieldPrefix,
   textAlign,
   fontFamily,
+  fontSizeScale,
   fieldErrors,
   onChange,
+  onFontSizeScaleChange,
 }: {
   idPrefix: string;
   fieldPrefix: string;
   textAlign: LandingPageTextAlignment;
   fontFamily: LandingPageThemeFont;
+  fontSizeScale: number;
   fieldErrors: Record<string, string[]>;
   onChange: (
     field: "textAlign" | "fontFamily",
     value: LandingPageTextAlignment | LandingPageThemeFont,
   ) => void;
+  onFontSizeScaleChange: (value: number) => void;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -174,6 +180,23 @@ function TextStyleFields({
         </select>
         <FieldDescription>Uses the fonts already loaded by this site theme.</FieldDescription>
         <FieldMessages messages={fieldErrors[`${fieldPrefix}.fontFamily`]} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-font-size-scale`}>Font size</FieldLabel>
+        <Input
+          aria-valuetext={`${fontSizeScale}%`}
+          id={`${idPrefix}-font-size-scale`}
+          max={150}
+          min={75}
+          onChange={(event) => onFontSizeScaleChange(Number(event.target.value))}
+          step={5}
+          type="range"
+          value={fontSizeScale}
+        />
+        <FieldDescription>
+          {fontSizeScale}% — scales the section text while preserving its size hierarchy.
+        </FieldDescription>
+        <FieldMessages messages={fieldErrors[`${fieldPrefix}.fontSizeScale`]} />
       </Field>
     </div>
   );
@@ -837,6 +860,7 @@ export function LandingPageBuilder({
           fieldErrors={fieldErrors}
           fieldPrefix={`sectionBackgrounds.${section}`}
           fontFamily={background.fontFamily}
+          fontSizeScale={background.fontSizeScale}
           idPrefix={section}
           onChange={(field, value) => setContent((current) => ({
             ...current,
@@ -846,6 +870,13 @@ export function LandingPageBuilder({
             },
           }))}
           textAlign={background.textAlign}
+          onFontSizeScaleChange={(fontSizeScale) => setContent((current) => ({
+            ...current,
+            sectionBackgrounds: {
+              ...current.sectionBackgrounds,
+              [section]: { ...current.sectionBackgrounds[section], fontSizeScale },
+            },
+          }))}
         />
         <FieldDescription>
           When both are set, the image is shown over this color.
@@ -870,7 +901,7 @@ export function LandingPageBuilder({
   const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(content.livestream.url);
   const previewBackgroundStyle = (
     section: LandingPageSectionKey,
-  ): CSSProperties & LandingPageBackgroundStyleVariables => {
+  ): CSSProperties & LandingPageBackgroundStyleVariables & LandingPageTypographyStyleVariables => {
     const background = content.sectionBackgrounds[section];
     const url = uploadedUrls[`background:${section}`];
     return {
@@ -882,6 +913,7 @@ export function LandingPageBuilder({
       color: background.textColor || undefined,
       textAlign: background.textAlign === "inherit" ? undefined : background.textAlign,
       fontFamily: getLandingPageFontFamily(background.fontFamily),
+      ...getLandingPageTypographyStyleVariables(background.fontSizeScale),
     };
   };
   const sectionTypographyAttributes = (section: LandingPageSectionKey) => {
@@ -889,6 +921,7 @@ export function LandingPageBuilder({
     return {
       "data-section-text-align": appearance.textAlign === "inherit" ? undefined : "true",
       "data-section-font-family": appearance.fontFamily === "inherit" ? undefined : "true",
+      "data-section-font-size": appearance.fontSizeScale === 100 ? undefined : "true",
     };
   };
 
@@ -1678,12 +1711,17 @@ export function LandingPageBuilder({
                     fieldErrors={fieldErrors}
                     fieldPrefix="footer"
                     fontFamily={content.footer.fontFamily}
+                    fontSizeScale={content.footer.fontSizeScale}
                     idPrefix="footer"
                     onChange={(field, value) => setContent((current) => ({
                       ...current,
                       footer: { ...current.footer, [field]: value },
                     }))}
                     textAlign={content.footer.textAlign}
+                    onFontSizeScaleChange={(fontSizeScale) => setContent((current) => ({
+                      ...current,
+                      footer: { ...current.footer, fontSizeScale },
+                    }))}
                   />
                 </FieldGroup>
               </div>
@@ -1892,10 +1930,12 @@ export function LandingPageBuilder({
                 className="rounded-xl bg-brand px-4 text-white"
                 data-section-text-align={content.footer.textAlign === "inherit" ? undefined : "true"}
                 data-section-font-family={content.footer.fontFamily === "inherit" ? undefined : "true"}
+                data-section-font-size={content.footer.fontSizeScale === 100 ? undefined : "true"}
                 style={{
                   paddingBlock: content.footer.paddingY,
                   textAlign: content.footer.textAlign === "inherit" ? undefined : content.footer.textAlign,
                   fontFamily: getLandingPageFontFamily(content.footer.fontFamily),
+                  ...getLandingPageTypographyStyleVariables(content.footer.fontSizeScale),
                 }}
               >
                 {content.footer.title && (

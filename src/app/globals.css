@@ -139,6 +139,22 @@ body {
   font-family: inherit !important;
 }
 
+[data-section-font-size] [class~="text-[0.8rem]"] {
+  font-size: var(--landing-section-text-size-0-8rem) !important;
+}
+
+[data-section-font-size] [class~="text-[10px]"] {
+  font-size: var(--landing-section-text-size-10px) !important;
+}
+
+[data-section-font-size] [class~="text-[11px]"] {
+  font-size: var(--landing-section-text-size-11px) !important;
+}
+
+[data-section-font-size] [class~="text-[15px]"] {
+  font-size: var(--landing-section-text-size-15px) !important;
+}
+
 html {
   scroll-behavior: smooth;
 }

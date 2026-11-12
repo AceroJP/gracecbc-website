@@ -23,9 +23,11 @@ import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { parseRegistrationFields } from "@/lib/registration";
 import {
   getLandingPageFontFamily,
+  getLandingPageTypographyStyleVariables,
   getYouTubeVideoEmbedUrl,
   type LandingPageBackgroundStyleVariables,
   type LandingPageSectionKey,
+  type LandingPageTypographyStyleVariables,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
@@ -136,7 +138,7 @@ export default async function Home({ searchParams }: HomeProps) {
       : null;
   const sectionBackgroundStyle = (
     section: LandingPageSectionKey,
-  ): CSSProperties & LandingPageBackgroundStyleVariables => {
+  ): CSSProperties & LandingPageBackgroundStyleVariables & LandingPageTypographyStyleVariables => {
     const background = landingPage.sectionBackgrounds[section];
     const url = imageUrl(background.image.path);
     return {
@@ -148,6 +150,7 @@ export default async function Home({ searchParams }: HomeProps) {
       color: background.textColor || undefined,
       textAlign: background.textAlign === "inherit" ? undefined : background.textAlign,
       fontFamily: getLandingPageFontFamily(background.fontFamily),
+      ...getLandingPageTypographyStyleVariables(background.fontSizeScale),
     };
   };
   const sectionTypographyAttributes = (section: LandingPageSectionKey) => {
@@ -155,6 +158,7 @@ export default async function Home({ searchParams }: HomeProps) {
     return {
       "data-section-text-align": appearance.textAlign === "inherit" ? undefined : "true",
       "data-section-font-family": appearance.fontFamily === "inherit" ? undefined : "true",
+      "data-section-font-size": appearance.fontSizeScale === 100 ? undefined : "true",
     };
   };
   const heroImageUrl = imageUrl(landingPage.hero.image.path);

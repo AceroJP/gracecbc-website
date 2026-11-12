@@ -1,6 +1,7 @@
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import {
   getLandingPageFontFamily,
+  getLandingPageTypographyStyleVariables,
   type LandingPageContent,
 } from "@/lib/landing-page";
 
@@ -17,10 +18,12 @@ export function PublicFooter({
         className="mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-12"
         data-section-text-align={footer.textAlign === "inherit" ? undefined : "true"}
         data-section-font-family={footer.fontFamily === "inherit" ? undefined : "true"}
+        data-section-font-size={footer.fontSizeScale === 100 ? undefined : "true"}
         style={{
           paddingBlock: footer.paddingY,
           textAlign: footer.textAlign === "inherit" ? undefined : footer.textAlign,
           fontFamily: getLandingPageFontFamily(footer.fontFamily),
+          ...getLandingPageTypographyStyleVariables(footer.fontSizeScale),
         }}
       >
         <div>
