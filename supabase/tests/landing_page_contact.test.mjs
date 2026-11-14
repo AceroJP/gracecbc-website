@@ -80,6 +80,7 @@ test("only admins can upload validated contact icons to the existing bucket", as
     "next/cache": { revalidatePath() {} },
     "@/lib/auth/server": { requireAdminUser: async () => { if (!admin) throw new Error("Not authorized"); } },
     "@/lib/landing-page": landingPage,
+    "@/lib/worship-schedules": {},
     "@/lib/supabase/server": { createClient: async () => ({ storage: { from: () => ({
       upload: async (filePath) => { uploaded.push(filePath); return { error: null }; },
       getPublicUrl: (filePath) => ({ data: { publicUrl: `https://example.com/${filePath}` } }),

@@ -127,15 +127,16 @@ body {
   pointer-events: none;
 }
 
-[data-section-custom-text] :is(h1, h2, h3, h4, p, a, span, li, time, label, strong, em) {
+[data-section-custom-text] :is(h1, h2, h3, h4, p, a, span, li, time, label, strong, em):not([data-schedule-typography]),
+[data-schedule-custom-text] :is(h1, h2, h3, h4, p, a, span, li, time, label, strong, em) {
   color: inherit !important;
 }
 
-[data-section-text-align] * {
+[data-section-text-align] :not([data-schedule-typography]) {
   text-align: inherit !important;
 }
 
-[data-section-font-family] * {
+[data-section-font-family] :not([data-schedule-typography]) {
   font-family: inherit !important;
 }
 

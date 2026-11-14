@@ -29,6 +29,8 @@ import {
   landingPageTextAlignments,
   landingPageThemeFonts,
   getDefaultLandingPageContent,
+  defaultScheduleTextStyle,
+  updateScheduleAppearance,
   parseLandingPageContent,
   resetLandingPageSection,
   type LandingPageContent,
@@ -37,6 +39,7 @@ import {
   type LandingPageSectionKey,
   type LandingPageTextAlignment,
   type LandingPageThemeFont,
+  type ScheduleTextStyle,
 } from "@/lib/landing-page";
 
 const sectionTitles: Record<LandingPageSectionKey, string> = {
@@ -56,6 +59,8 @@ type Props = {
   imageUrls: Record<string, string | null>;
   publishedImageUrls: Record<string, string | null>;
   announcements: Array<{ id: string; title: string }>;
+  schedules: Array<{ id: string; day: string; service_name: string }>;
+  schedulesUnavailable: boolean;
 };
 
 type ImageSlot =
@@ -208,6 +213,8 @@ export function LandingPageBuilder({
   imageUrls,
   publishedImageUrls,
   announcements,
+  schedules,
+  schedulesUnavailable,
 }: Props) {
   const router = useRouter();
   const [content, setContent] = useState(draft);
@@ -220,12 +227,24 @@ export function LandingPageBuilder({
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [scheduleStyleTarget, setScheduleStyleTarget] = useState("cards");
   const [openSection, setOpenSection] = useState<BuilderPanelKey | null>("header");
   const sectionHeaderRefs = useRef<Partial<Record<BuilderPanelKey, HTMLButtonElement | null>>>({});
   const hasDraftChanges = useMemo(
     () => JSON.stringify(content) !== JSON.stringify(publishedContent),
     [content, publishedContent],
   );
+
+  const scheduleAppearance = content.schedule.appearance;
+  const selectedScheduleStyle = scheduleStyleTarget.startsWith("card:")
+    ? scheduleAppearance.individualCards[scheduleStyleTarget.slice(5)] ?? defaultScheduleTextStyle
+    : scheduleAppearance[scheduleStyleTarget as "title" | "intro" | "cards"];
+
+  function updateScheduleStyle<K extends keyof ScheduleTextStyle>(field: K, value: ScheduleTextStyle[K]) {
+    setContent((current) => ({ ...current, schedule: { ...current.schedule,
+      appearance: updateScheduleAppearance(current.schedule.appearance, scheduleStyleTarget, field, value),
+    } }));
+  }
 
   useEffect(() => {
     if (!openSection) return;
@@ -1467,6 +1486,47 @@ export function LandingPageBuilder({
                       <FieldDescription>Choose how many schedules appear before the View all link.</FieldDescription>
                       <FieldMessages messages={fieldErrors["schedule.count"]} />
                     </Field>
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="schedule-style-target">Style which text?</FieldLabel>
+                        <select className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm" id="schedule-style-target" value={scheduleStyleTarget} onChange={(event) => setScheduleStyleTarget(event.target.value)}>
+                          <option value="title">Section title</option>
+                          <option value="intro">Intro line</option>
+                          <option value="cards">All schedule cards</option>
+                          {schedules.map((schedule) => <option key={schedule.id} value={`card:${schedule.id}`}>{schedule.service_name} - {schedule.day}</option>)}
+                        </select>
+                        <FieldDescription>Choose one card or all cards. Changing a setting for all cards replaces that setting on individual cards; other settings stay unchanged.</FieldDescription>
+                        {schedulesUnavailable && <FieldDescription>Schedule entries could not be loaded. Check the schedules database migration and reload this page.</FieldDescription>}
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="schedule-style-color">Text color</FieldLabel>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Input className="h-11 w-16 p-1" id="schedule-style-color" type="color" value={selectedScheduleStyle.textColor || "#000000"} onChange={(event) => updateScheduleStyle("textColor", event.target.value)} />
+                          <span className="text-sm text-muted-foreground">{selectedScheduleStyle.textColor || "Using inherited color"}</span>
+                          <Button type="button" size="sm" variant="outline" onClick={() => updateScheduleStyle("textColor", "")}>Use inherited color</Button>
+                        </div>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="schedule-style-align">Text alignment</FieldLabel>
+                        <select className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm" id="schedule-style-align" value={selectedScheduleStyle.textAlign} onChange={(event) => updateScheduleStyle("textAlign", event.target.value as LandingPageTextAlignment)}>
+                          <option value="inherit">Use inherited alignment</option><option value="left">Align left</option><option value="center">Center</option><option value="right">Align right</option><option value="justify">Justify</option>
+                        </select>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="schedule-style-font">Theme font</FieldLabel>
+                        <select className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm" id="schedule-style-font" value={selectedScheduleStyle.fontFamily} onChange={(event) => updateScheduleStyle("fontFamily", event.target.value as LandingPageThemeFont)}>
+                          <option value="inherit">Use inherited font</option><option value="theme-sans">Theme Sans (Geist)</option><option value="theme-mono">Theme Mono (Geist Mono)</option>
+                        </select>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="schedule-style-size">Font size</FieldLabel>
+                        <select className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm" id="schedule-style-size" value={selectedScheduleStyle.fontSizeScale ?? "inherit"} onChange={(event) => updateScheduleStyle("fontSizeScale", event.target.value === "inherit" ? null : Number(event.target.value))}>
+                          <option value="inherit">Use inherited size</option>
+                          {Array.from({ length: 16 }, (_, index) => 75 + index * 5).map((size) => <option key={size} value={size}>{size}%</option>)}
+                        </select>
+                        <FieldDescription>Individual cards inherit from all cards, then the section. The title stays inside its schedule card.</FieldDescription>
+                      </Field>
+                    </FieldGroup>
                     <p className="text-sm text-muted-foreground">Schedule entries are managed separately and changes go live immediately when this section is published and visible. Refresh the preview after making changes.</p>
                     <a className="w-fit text-sm font-semibold text-brand underline underline-offset-4" href="/admin/schedules" rel="noopener noreferrer" target="_blank">Manage schedules (opens a new tab)</a>
                   </>

@@ -127,6 +127,48 @@ test("schedule settings exclude legacy draft rows while public content uses mana
   assert.doesNotMatch(render(), /id="schedules"/);
 });
 
+test("schedule typography supports individual cards, all-card updates, and legacy defaults", () => {
+  const content = fixture();
+  delete content.schedule.appearance;
+  let parsed = landingPage.parseLandingPageContent(content);
+  assert.equal(parsed.success, true);
+  const first = "00000000-0000-4000-8000-000000000001";
+  const second = "00000000-0000-4000-8000-000000000002";
+  let appearance = parsed.data.schedule.appearance;
+  appearance = landingPage.updateScheduleAppearance(appearance, `card:${first}`, "textAlign", "right");
+  appearance = landingPage.updateScheduleAppearance(appearance, `card:${first}`, "textColor", "#123456");
+  appearance = landingPage.updateScheduleAppearance(appearance, `card:${second}`, "textAlign", "left");
+  appearance = landingPage.updateScheduleAppearance(appearance, "cards", "fontFamily", "theme-mono");
+  assert.equal(appearance.individualCards[first].textAlign, "right");
+  assert.equal(appearance.individualCards[second].textAlign, "left");
+  appearance = landingPage.updateScheduleAppearance(appearance, "cards", "textAlign", "center");
+  assert.equal(appearance.individualCards[first].textAlign, "inherit");
+  assert.equal(appearance.individualCards[first].textColor, "#123456");
+  appearance = landingPage.updateScheduleAppearance(appearance, `card:${first}`, "textAlign", "right");
+  appearance = landingPage.updateScheduleAppearance(appearance, `card:${first}`, "fontSizeScale", 150);
+  appearance = landingPage.updateScheduleAppearance(appearance, "title", "textAlign", "left");
+  parsed.data.schedule.appearance = appearance;
+  parsed = landingPage.parseLandingPageContent(JSON.parse(JSON.stringify(parsed.data)));
+  assert.equal(parsed.success, true);
+  const data = publicData();
+  data.schedules = [{ id: first, day: "Sunday", time: "9 AM", service_name: "First title", note: "First note" }, { id: second, day: "Wednesday", time: "6 PM", service_name: "Second title", note: "" }];
+  parsed.data.sectionBackgrounds.schedule.textAlign = "center";
+  parsed.data.sectionBackgrounds.schedule.textColor = "#abcdef";
+  const html = renderToStaticMarkup(React.createElement(loadLandingPageView(), { landingPage: parsed.data, data, imageUrls: {} }));
+  const cards = [...html.matchAll(/<article[^>]*data-schedule-typography[^>]*>[\s\S]*?<\/article>/g)].map((match) => match[0]);
+  assert.equal(cards.length, 2);
+  assert.match(cards[0], /text-align:right/);
+  assert.match(cards[0], /color:#123456/);
+  assert.match(cards[0], /--text-lg:1\.6875rem/);
+  assert.match(cards[0], /font-family:var\(--font-mono\)/);
+  assert.match(cards[0], /<h3[^>]*>First title<\/h3>/);
+  assert.match(cards[1], /text-align:center/);
+  assert.match(cards[1], /<h3[^>]*>Second title<\/h3>/);
+  assert.match(html, /id="worship-schedule-heading" style="[^"]*text-align:left/);
+  parsed.data.schedule.appearance.cards.textColor = "red; color: blue";
+  assert.equal(landingPage.parseLandingPageContent(parsed.data).success, false);
+});
+
 test("shared public view applies section minimums and zero restores automatic height", () => {
   const content = fixture();
   const View = loadLandingPageView();

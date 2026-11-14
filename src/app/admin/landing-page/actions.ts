@@ -10,6 +10,7 @@ import {
   parseLandingPageContent,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
+import { isMissingWorshipSchedulesTable } from "@/lib/worship-schedules";
 
 type ActionResult =
   | { status: "success"; message: string }
@@ -32,6 +33,18 @@ function reportDatabaseError(message: string, error: unknown): never {
   throw new Error(message, { cause: error });
 }
 
+async function schedulesReady(supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
+  const { error } = await supabase.from("worship_schedules").select("id").limit(1);
+  if (!error) return true;
+  if (isMissingWorshipSchedulesTable(error)) return false;
+  reportDatabaseError("Unable to check worship schedules before saving the landing page.", error);
+}
+
+const migrationRequired: ActionResult = {
+  status: "error",
+  message: "The worship schedules database update is required before saving or publishing. Apply the schedules migration and try again.",
+};
+
 export async function saveLandingPageDraftAction(
   input: unknown,
 ): Promise<ActionResult> {
@@ -42,6 +55,7 @@ export async function saveLandingPageDraftAction(
   }
 
   const supabase = await createClient();
+  if (!(await schedulesReady(supabase))) return migrationRequired;
   const { error } = await supabase.from("landing_page_drafts").upsert(
     {
       id: true,
@@ -68,6 +82,7 @@ export async function publishLandingPageAction(
   }
 
   const supabase = await createClient();
+  if (!(await schedulesReady(supabase))) return migrationRequired;
   const { data: publishedRow, error: publishedReadError } = await supabase
     .from("landing_page_published")
     .select("content")
@@ -124,6 +139,7 @@ export async function publishLandingPageAction(
 export async function discardLandingPageDraftAction(): Promise<ActionResult> {
   await requireAdminUser();
   const supabase = await createClient();
+  if (!(await schedulesReady(supabase))) return migrationRequired;
   const { data, error } = await supabase
     .from("landing_page_published")
     .select("content")

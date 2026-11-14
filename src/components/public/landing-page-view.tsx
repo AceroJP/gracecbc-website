@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import { getAnnouncementCategoryLabel } from "@/lib/announcements";
 import { parseRegistrationFields } from "@/lib/registration";
-import { getLandingPageFontFamily, getLandingPageTypographyStyleVariables, getLivestreamVideoUrls, landingPageContactKeys, type LandingPageBackgroundStyleVariables, type LandingPageSectionKey, type LandingPageTypographyStyleVariables, type LandingPageContent } from "@/lib/landing-page";
+import { getLandingPageFontFamily, getLandingPageTypographyStyleVariables, getLivestreamVideoUrls, landingPageContactKeys, type LandingPageBackgroundStyleVariables, type LandingPageSectionKey, type LandingPageTypographyStyleVariables, type LandingPageContent, type ScheduleTextStyle } from "@/lib/landing-page";
 import type { getLandingPageData } from "@/lib/landing-page-data";
 import { ContactDetails } from "@/components/public/contact-details";
 import { LivestreamSlider } from "@/components/public/livestream-slider";
@@ -60,6 +60,18 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
   const sectionContentStyle = (section: LandingPageSectionKey): CSSProperties => ({
     paddingBlock: landingPage.sectionBackgrounds[section].paddingY ?? undefined,
   });
+  const scheduleTextStyle = (style: ScheduleTextStyle, fallback?: ScheduleTextStyle): CSSProperties => {
+    const textColor = style.textColor || fallback?.textColor;
+    const textAlign = style.textAlign !== "inherit" ? style.textAlign : fallback?.textAlign;
+    const fontFamily = style.fontFamily !== "inherit" ? style.fontFamily : fallback?.fontFamily;
+    const fontSizeScale = style.fontSizeScale ?? fallback?.fontSizeScale;
+    return {
+      color: textColor || (landingPage.sectionBackgrounds.schedule.textColor ? "inherit" : undefined),
+      textAlign: textAlign && textAlign !== "inherit" ? textAlign : undefined,
+      fontFamily: fontFamily ? getLandingPageFontFamily(fontFamily) : undefined,
+      ...(fontSizeScale != null ? getLandingPageTypographyStyleVariables(fontSizeScale) : {}),
+    };
+  };
   const heroImageUrl = imageUrl("hero", landingPage.hero.image.path);
   const welcomeImageUrl = imageUrl("welcome", landingPage.welcome.image.path);
   const hasHero =
@@ -199,13 +211,13 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           style={{ order: landingPage.sectionOrder.indexOf("schedule"), ...sectionBackgroundStyle("schedule") }}
         >
           <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("schedule")}>
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
+            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" data-schedule-typography id="worship-schedule-heading" style={scheduleTextStyle(landingPage.schedule.appearance.title)}>
               {landingPage.schedule.title}
             </h2>
-            {landingPage.schedule.intro && <p className="mt-3 text-base leading-7 text-muted-foreground">{landingPage.schedule.intro}</p>}
+            {landingPage.schedule.intro && <p className="mt-3 text-base leading-7 text-muted-foreground" data-schedule-typography style={scheduleTextStyle(landingPage.schedule.appearance.intro)}>{landingPage.schedule.intro}</p>}
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(params.show === "schedules" ? schedules : schedules.slice(0, landingPage.schedule.count)).map((row) => (
-                <article className="rounded-2xl border border-border bg-card p-6" key={row.id}>
+                <article className="rounded-2xl border border-border bg-card p-6" data-schedule-typography data-schedule-custom-text={landingPage.schedule.appearance.individualCards[row.id]?.textColor || landingPage.schedule.appearance.cards.textColor ? "true" : undefined} key={row.id} style={scheduleTextStyle(landingPage.schedule.appearance.individualCards[row.id] ?? landingPage.schedule.appearance.cards, landingPage.schedule.appearance.cards)}>
                   <p className="text-sm font-medium text-brand">{row.day}</p>
                   <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.service_name}</h3>
                   <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">

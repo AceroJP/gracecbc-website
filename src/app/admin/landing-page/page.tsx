@@ -31,6 +31,7 @@ export default async function LandingPageBuilderPage() {
     { data: draftRow, error: draftError },
     { data: publishedRow, error: publishedError },
     { data: announcements, error: announcementsError },
+    { data: schedules, error: schedulesError },
   ] = await Promise.all([
     supabase
       .from("landing_page_drafts")
@@ -47,6 +48,12 @@ export default async function LandingPageBuilderPage() {
       .select("id, title")
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("worship_schedules")
+      .select("id, day, service_name")
+      .is("archived_at", null)
+      .order("sort_order")
+      .order("id"),
   ]);
 
   if (draftError) {
@@ -111,6 +118,8 @@ export default async function LandingPageBuilderPage() {
         imageUrls={imageUrls(draft)}
         published={published}
         publishedImageUrls={imageUrls(published)}
+        schedules={schedules ?? []}
+        schedulesUnavailable={Boolean(schedulesError)}
       />
     </>
   );

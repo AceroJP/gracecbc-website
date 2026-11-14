@@ -142,6 +142,25 @@ const imageSchema = z.object({
 });
 
 const defaultImage = { path: null, alt: "" };
+export const defaultScheduleTextStyle = {
+  textColor: "",
+  textAlign: "inherit" as const,
+  fontFamily: "inherit" as const,
+  fontSizeScale: null as number | null,
+};
+const scheduleTextStyleSchema = z.object({
+  textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  textAlign: z.enum(landingPageTextAlignments).default("inherit"),
+  fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
+  fontSizeScale: z.number().int().min(75).max(150).nullable().default(null),
+});
+const defaultScheduleAppearance = {
+  title: defaultScheduleTextStyle,
+  intro: defaultScheduleTextStyle,
+  cards: defaultScheduleTextStyle,
+  individualCards: {},
+};
+export type ScheduleTextStyle = z.infer<typeof scheduleTextStyleSchema>;
 const defaultContactAppearance = { textColor: "", image: defaultImage };
 const contactAppearanceSchema = z.object({
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
@@ -275,6 +294,12 @@ const builderContentSchema = z.object({
     title: text(120).default("Worship schedule"),
     intro: text(500).default(""),
     count: z.number().int().min(1).max(100).default(20),
+    appearance: z.object({
+      title: scheduleTextStyleSchema.default(defaultScheduleTextStyle),
+      intro: scheduleTextStyleSchema.default(defaultScheduleTextStyle),
+      cards: scheduleTextStyleSchema.default(defaultScheduleTextStyle),
+      individualCards: z.record(z.uuid(), scheduleTextStyleSchema).default({}),
+    }).default(defaultScheduleAppearance),
   }),
   livestream: z.preprocess((value) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -374,6 +399,29 @@ const builderContentSchema = z.object({
 
 export type LandingPageContent = z.infer<typeof builderContentSchema>;
 
+export function updateScheduleAppearance<K extends keyof ScheduleTextStyle>(
+  appearance: LandingPageContent["schedule"]["appearance"],
+  target: string,
+  field: K,
+  value: ScheduleTextStyle[K],
+): LandingPageContent["schedule"]["appearance"] {
+  if (target.startsWith("card:")) {
+    const id = target.slice(5);
+    return { ...appearance, individualCards: {
+      ...appearance.individualCards,
+      [id]: { ...(appearance.individualCards[id] ?? defaultScheduleTextStyle), [field]: value },
+    } };
+  }
+  const group = target as "title" | "intro" | "cards";
+  return {
+    ...appearance,
+    [group]: { ...appearance[group], [field]: value },
+    individualCards: group === "cards"
+      ? Object.fromEntries(Object.entries(appearance.individualCards).map(([id, style]) => [id, { ...style, [field]: defaultScheduleTextStyle[field] }]))
+      : appearance.individualCards,
+  };
+}
+
 const defaultLandingPageContent: LandingPageContent = {
   sectionOrder: [...landingPageSectionKeys],
   header: defaultHeader,
@@ -399,7 +447,7 @@ const defaultLandingPageContent: LandingPageContent = {
     text: "",
     image: { path: null, alt: "" },
   },
-  schedule: { title: "Worship schedule", intro: "", count: 20 },
+  schedule: { title: "Worship schedule", intro: "", count: 20, appearance: defaultScheduleAppearance },
   livestream: { items: [], itemsToShow: 9, videoWidth: 768 },
   contact: {
     address: "",

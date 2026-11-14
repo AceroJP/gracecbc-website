@@ -4,6 +4,7 @@ import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { landingPageContactKeys, landingPageSectionKeys, type LandingPageContent } from "@/lib/landing-page";
 import type { PublicAnnouncement } from "@/components/public/announcement-viewer";
+import { isMissingWorshipSchedulesTable, legacyScheduleRowsSchema } from "@/lib/worship-schedules";
 
 export async function getLandingPageData() {
   const turnstileSiteKey = getOptionalTurnstileSiteKey();
@@ -47,7 +48,7 @@ export async function getLandingPageData() {
   if (eventsError) {
     throw new Error("Unable to load public events.", { cause: eventsError });
   }
-  if (schedulesError) {
+  if (schedulesError && !isMissingWorshipSchedulesTable(schedulesError)) {
     throw new Error("Unable to load public worship schedules.", { cause: schedulesError });
   }
   if (announcementsError) {
@@ -57,6 +58,18 @@ export async function getLandingPageData() {
   }
   if (devotionalsError) {
     throw new Error("Unable to load public devotionals.", { cause: devotionalsError });
+  }
+
+  let publicSchedules = schedules ?? [];
+  if (schedulesError) {
+    const { data: published, error } = await supabase.from("landing_page_published").select("content").eq("id", true).maybeSingle();
+    if (error) throw new Error("Unable to load the published worship schedules.", { cause: error });
+    const content = published?.content;
+    const schedule = content && typeof content === "object" && !Array.isArray(content) ? content.schedule : null;
+    const rows = schedule && typeof schedule === "object" && !Array.isArray(schedule) ? schedule.rows : undefined;
+    const parsedRows = legacyScheduleRowsSchema.safeParse(rows ?? []);
+    if (!parsedRows.success) throw new Error("Published worship schedules are invalid.", { cause: parsedRows.error });
+    publicSchedules = parsedRows.data.map((row) => ({ id: row.id, day: row.day, time: row.time, service_name: row.serviceName, note: row.note }));
   }
 
   const storage = supabase.storage.from(announcementBucket);
@@ -87,7 +100,7 @@ export async function getLandingPageData() {
       created_at: announcement.created_at,
       displayDate: formatAnnouncementDate(announcement.created_at),
     }));
-  return { events, schedules, publicAnnouncements, devotionals: devotionals ?? [], devotionalCount, turnstileSiteKey, today: new Date().toISOString().slice(0, 10) };
+  return { events, schedules: publicSchedules, publicAnnouncements, devotionals: devotionals ?? [], devotionalCount, turnstileSiteKey, today: new Date().toISOString().slice(0, 10) };
 }
 
 export async function getLandingPageImageUrls(content: LandingPageContent) {
