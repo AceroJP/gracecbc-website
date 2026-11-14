@@ -65,7 +65,6 @@ type ImageSlot =
   | `contact:${LandingPageContactKey}`
   | `background:${LandingPageSectionKey}`;
 type BuilderPanelKey = LandingPageSectionKey | "footer" | "header";
-type ScheduleRow = LandingPageContent["schedule"]["rows"][number];
 type ActionResponse = Awaited<ReturnType<typeof saveLandingPageDraftAction>>;
 
 const navigationTitles: Record<LandingPageNavigationKey, string> = {
@@ -220,6 +219,7 @@ export function LandingPageBuilder({
   const [uploadedUrls, setUploadedUrls] = useState(imageUrls);
   const [publishedUrls, setPublishedUrls] = useState(publishedImageUrls);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [openSection, setOpenSection] = useState<BuilderPanelKey | null>("header");
   const sectionHeaderRefs = useRef<Partial<Record<BuilderPanelKey, HTMLButtonElement | null>>>({});
   const hasDraftChanges = useMemo(
@@ -1012,17 +1012,6 @@ export function LandingPageBuilder({
     );
   }
 
-  function updateScheduleRow(id: string, key: keyof ScheduleRow, value: string) {
-    setContent((current) => ({
-      ...current,
-      schedule: {
-        rows: current.schedule.rows.map((row) =>
-          row.id === id ? { ...row, [key]: value } : row,
-        ),
-      },
-    }));
-  }
-
   function draftActionButtons(compact = false) {
     return (
       <div className={`flex flex-wrap gap-2 ${compact ? "justify-end" : ""}`}>
@@ -1462,74 +1451,24 @@ export function LandingPageBuilder({
 
                 {section === "schedule" && (
                   <>
-                    {content.schedule.rows.map((row, rowIndex) => (
-                      <fieldset className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2" key={row.id}>
-                        <legend className="px-1 text-sm font-medium">Schedule row {rowIndex + 1}</legend>
-                        {([
-                          ["day", "Day"],
-                          ["time", "Time"],
-                          ["serviceName", "Service name"],
-                          ["note", "Optional note"],
-                        ] as const).map(([field, label]) => (
-                          <Field key={field}>
-                            <FieldLabel htmlFor={`schedule-${row.id}-${field}`}>{label}</FieldLabel>
-                            <Input
-                              aria-invalid={Boolean(fieldErrors[`schedule.rows.${rowIndex}.${field}`])}
-                              id={`schedule-${row.id}-${field}`}
-                              maxLength={field === "note" ? 300 : 120}
-                              onChange={(event) => updateScheduleRow(row.id, field, event.target.value)}
-                              value={row[field]}
-                            />
-                            <FieldMessages messages={fieldErrors[`schedule.rows.${rowIndex}.${field}`]} />
-                          </Field>
-                        ))}
-                        <Button
-                          className="sm:col-span-2 sm:justify-self-start"
-                          onClick={async () => {
-                            if (
-                              !(await confirmAction(
-                                "Remove this schedule row?",
-                                "The row will be removed from this draft.",
-                                "Remove row",
-                              ))
-                            ) {
-                              return;
-                            }
-                            setContent((current) => ({
-                              ...current,
-                              schedule: {
-                                rows: current.schedule.rows.filter((item) => item.id !== row.id),
-                              },
-                            }));
-                          }}
-                          type="button"
-                          variant="outline"
-                        >
-                          Remove row
-                        </Button>
-                      </fieldset>
-                    ))}
-                    <FieldMessages messages={fieldErrors["schedule.rows"]} />
-                    <Button
-                      className="w-fit"
-                      disabled={content.schedule.rows.length >= 20}
-                      onClick={() => setContent((current) => ({
-                        ...current,
-                        schedule: {
-                          rows: [...current.schedule.rows, {
-                            id: crypto.randomUUID(),
-                            day: "",
-                            time: "",
-                            serviceName: "",
-                            note: "",
-                          }],
-                        },
-                      }))}
-                      type="button"
-                      variant="outline"
-                    >
-                      Add schedule row
-                    </Button>
+                    <Field>
+                      <FieldLabel htmlFor="schedule-title">Section title</FieldLabel>
+                      <Input id="schedule-title" maxLength={120} value={content.schedule.title} onChange={(event) => setContent((current) => ({ ...current, schedule: { ...current.schedule, title: event.target.value } }))} />
+                      <FieldMessages messages={fieldErrors["schedule.title"]} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="schedule-intro">Intro line</FieldLabel>
+                      <Textarea id="schedule-intro" maxLength={500} rows={2} value={content.schedule.intro} onChange={(event) => setContent((current) => ({ ...current, schedule: { ...current.schedule, intro: event.target.value } }))} />
+                      <FieldMessages messages={fieldErrors["schedule.intro"]} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="schedule-count">Items to show</FieldLabel>
+                      <Input id="schedule-count" type="number" min={1} max={100} value={content.schedule.count} onChange={(event) => setContent((current) => ({ ...current, schedule: { ...current.schedule, count: Number(event.target.value) } }))} />
+                      <FieldDescription>Choose how many schedules appear before the View all link.</FieldDescription>
+                      <FieldMessages messages={fieldErrors["schedule.count"]} />
+                    </Field>
+                    <p className="text-sm text-muted-foreground">Schedule entries are managed separately and changes go live immediately when this section is published and visible. Refresh the preview after making changes.</p>
+                    <a className="w-fit text-sm font-semibold text-brand underline underline-offset-4" href="/admin/schedules" rel="noopener noreferrer" target="_blank">Manage schedules (opens a new tab)</a>
                   </>
                 )}
 
@@ -1998,9 +1937,10 @@ export function LandingPageBuilder({
           <div aria-label="Preview size" className="flex gap-2">
             <Button aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")} size="sm" type="button" variant={previewDevice === "desktop" ? "default" : "outline"}>Desktop</Button>
             <Button aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")} size="sm" type="button" variant={previewDevice === "mobile" ? "default" : "outline"}>Mobile</Button>
+            <Button onClick={() => setPreviewVersion((version) => version + 1)} size="sm" type="button" variant="outline">Refresh preview</Button>
           </div>
         </div>
-        <LandingPagePreviewFrame content={content} imageUrls={uploadedUrls} device={previewDevice} />
+        <LandingPagePreviewFrame key={previewVersion} content={content} imageUrls={uploadedUrls} device={previewDevice} />
         <Dialog>
           <DialogTrigger render={<Button className="mt-3" type="button" variant="outline" />}>Enlarge preview</DialogTrigger>
           <DialogContent className="h-[90dvh] w-[96vw] max-w-none grid-rows-[auto_auto_1fr] sm:max-w-none">
@@ -2011,8 +1951,9 @@ export function LandingPageBuilder({
             <div aria-label="Preview size" className="flex gap-2">
               <Button aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")} size="sm" type="button" variant={previewDevice === "desktop" ? "default" : "outline"}>Desktop</Button>
               <Button aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")} size="sm" type="button" variant={previewDevice === "mobile" ? "default" : "outline"}>Mobile</Button>
+              <Button onClick={() => setPreviewVersion((version) => version + 1)} size="sm" type="button" variant="outline">Refresh preview</Button>
             </div>
-            <LandingPagePreviewFrame content={content} imageUrls={uploadedUrls} device={previewDevice} expanded />
+            <LandingPagePreviewFrame key={previewVersion} content={content} imageUrls={uploadedUrls} device={previewDevice} expanded />
           </DialogContent>
         </Dialog>
       </aside>

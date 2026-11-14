@@ -10,6 +10,7 @@ export async function getLandingPageData() {
   const supabase = await createClient();
   const [
     { data: events, error: eventsError },
+    { data: schedules, error: schedulesError },
     { data: announcements, error: announcementsError },
     { data: devotionals, count: devotionalCount, error: devotionalsError },
   ] = await Promise.all([
@@ -21,6 +22,12 @@ export async function getLandingPageData() {
       .is("archived_at", null)
       .order("event_date", { ascending: true })
       .order("starts_at", { ascending: true }),
+    supabase
+      .from("worship_schedules")
+      .select("id, day, time, service_name, note")
+      .is("archived_at", null)
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true }),
     supabase
       .from("announcements")
       .select(
@@ -39,6 +46,9 @@ export async function getLandingPageData() {
 
   if (eventsError) {
     throw new Error("Unable to load public events.", { cause: eventsError });
+  }
+  if (schedulesError) {
+    throw new Error("Unable to load public worship schedules.", { cause: schedulesError });
   }
   if (announcementsError) {
     throw new Error("Unable to load public announcements.", {
@@ -77,7 +87,7 @@ export async function getLandingPageData() {
       created_at: announcement.created_at,
       displayDate: formatAnnouncementDate(announcement.created_at),
     }));
-  return { events, publicAnnouncements, devotionals: devotionals ?? [], devotionalCount, turnstileSiteKey, today: new Date().toISOString().slice(0, 10) };
+  return { events, schedules, publicAnnouncements, devotionals: devotionals ?? [], devotionalCount, turnstileSiteKey, today: new Date().toISOString().slice(0, 10) };
 }
 
 export async function getLandingPageImageUrls(content: LandingPageContent) {

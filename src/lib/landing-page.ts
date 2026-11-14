@@ -272,13 +272,9 @@ const builderContentSchema = z.object({
     image: imageSchema,
   }),
   schedule: z.object({
-    rows: z.array(z.object({
-      id: z.string().uuid(),
-      day: requiredText(40),
-      time: requiredText(40),
-      serviceName: requiredText(120),
-      note: text(300),
-    })).max(20),
+    title: text(120).default("Worship schedule"),
+    intro: text(500).default(""),
+    count: z.number().int().min(1).max(100).default(20),
   }),
   livestream: z.preprocess((value) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -337,8 +333,8 @@ const builderContentSchema = z.object({
     ],
     [
       "schedule",
-      content.schedule.rows.length > 0,
-      "Add a worship schedule row before showing this section.",
+      Boolean(content.schedule.title),
+      "Add a title for the worship schedule section.",
     ],
     [
       "livestream",
@@ -403,7 +399,7 @@ const defaultLandingPageContent: LandingPageContent = {
     text: "",
     image: { path: null, alt: "" },
   },
-  schedule: { rows: [] },
+  schedule: { title: "Worship schedule", intro: "", count: 20 },
   livestream: { items: [], itemsToShow: 9, videoWidth: 768 },
   contact: {
     address: "",

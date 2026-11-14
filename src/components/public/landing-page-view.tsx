@@ -15,7 +15,7 @@ import { AnnouncementViewer } from "@/components/public/announcement-viewer";
 
 type Props = { landingPage: LandingPageContent; imageUrls: Record<string, string | null>; data: Awaited<ReturnType<typeof getLandingPageData>>; show?: string };
 export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
-  const { events, publicAnnouncements, devotionals, devotionalCount, turnstileSiteKey, today } = data;
+  const { events, schedules, publicAnnouncements, devotionals, devotionalCount, turnstileSiteKey, today } = data;
   const params = { show };
   const sortedAnnouncements = [...publicAnnouncements].sort((a, b) => {
     if (a.id === landingPage.announcements.pinnedId) return -1;
@@ -74,7 +74,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
     landingPage.visibility.welcome &&
     Boolean(landingPage.welcome.text || welcomeImageUrl);
   const hasSchedule =
-    landingPage.visibility.schedule && landingPage.schedule.rows.length > 0;
+    landingPage.visibility.schedule && schedules.length > 0;
   const hasLivestream =
     landingPage.visibility.livestream && landingPage.livestream.itemsToShow > 0 && landingPage.livestream.items.some((item) => getLivestreamVideoUrls(item.url));
   const hasAnnouncements =
@@ -200,13 +200,14 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
         >
           <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("schedule")}>
             <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
-              Worship schedule
+              {landingPage.schedule.title}
             </h2>
+            {landingPage.schedule.intro && <p className="mt-3 text-base leading-7 text-muted-foreground">{landingPage.schedule.intro}</p>}
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {landingPage.schedule.rows.map((row) => (
+              {(params.show === "schedules" ? schedules : schedules.slice(0, landingPage.schedule.count)).map((row) => (
                 <article className="rounded-2xl border border-border bg-card p-6" key={row.id}>
                   <p className="text-sm font-medium text-brand">{row.day}</p>
-                  <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.serviceName}</h3>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight">{row.service_name}</h3>
                   <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <Clock3 aria-hidden="true" className="size-4 shrink-0" />
                     {row.time}
@@ -219,6 +220,9 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
                 </article>
               ))}
             </div>
+            {params.show !== "schedules" && schedules.length > landingPage.schedule.count && (
+              <p className="mt-6"><Link className="text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4" href="/?show=schedules#schedules">View all</Link></p>
+            )}
           </div>
         </section>
       )}

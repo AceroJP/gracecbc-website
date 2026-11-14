@@ -35,7 +35,6 @@ function fixture() {
   }
   content.hero.headline = "Welcome";
   content.welcome.text = "Welcome message";
-  content.schedule.rows = [{ id: "00000000-0000-4000-8000-000000000001", day: "Sunday", time: "10 AM", serviceName: "Worship", note: "" }];
   content.livestream.items = [{ id: "00000000-0000-4000-8000-000000000001", url: "https://youtube.com/watch?v=abcdefghijk", label: "" }];
   content.contact.address = "Church address";
   content.footer.backgroundColor = "#123456";
@@ -86,6 +85,7 @@ function loadLandingPageView() {
 function publicData() {
   return {
     events: [{ id: "event", title: "Event", description: "Details", event_date: "2026-01-01", end_date: null, starts_at: "10:00", ends_at: null, location: "Church", registration_enabled: false }],
+    schedules: [{ id: "schedule", day: "Sunday", time: "10 AM", service_name: "Worship", note: "" }],
     publicAnnouncements: [{ id: "announcement", title: "Notice", body: "Details", slide_urls: [], slide_names: [], categories: [], created_at: "2026-01-01", displayDate: "Date", presentation_url: null, background_url: null }],
     devotionals: [{ id: "devotional", slug: "test", title: "Devotional", bible_passage: "John 3:16" }],
     devotionalCount: 1,
@@ -93,6 +93,39 @@ function publicData() {
     today: "2026-01-01",
   };
 }
+
+test("schedule settings exclude legacy draft rows while public content uses managed schedules", () => {
+  const content = fixture();
+  content.schedule.rows = [{ id: "00000000-0000-4000-8000-000000000001", day: "Sunday", time: "10 AM", serviceName: "Unpublished legacy", note: "" }];
+  delete content.schedule.title;
+  delete content.schedule.intro;
+  delete content.schedule.count;
+  const parsed = landingPage.parseLandingPageContent(content);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.schedule.title, "Worship schedule");
+  assert.equal(parsed.data.schedule.count, 20);
+  assert.equal("rows" in parsed.data.schedule, false);
+  assert.doesNotMatch(JSON.stringify(parsed.data), /Unpublished legacy/);
+  parsed.data.schedule.count = 1;
+  parsed.data.schedule.title = "Services";
+  parsed.data.schedule.intro = "Join us";
+  const data = publicData();
+  data.schedules = [{ id: "1", day: "Sunday", time: "9 AM", service_name: "Managed first", note: "" }, { id: "2", day: "Wednesday", time: "6 PM", service_name: "Managed second", note: "" }];
+  const View = loadLandingPageView();
+  const render = (show) => renderToStaticMarkup(React.createElement(View, { landingPage: parsed.data, data, imageUrls: {}, show }));
+  const html = render();
+  assert.match(html, /Services/);
+  assert.match(html, /Join us/);
+  assert.match(html, /Managed first/);
+  assert.doesNotMatch(html, /Managed second/);
+  assert.match(html.match(/<section[^>]*id="schedules"[^>]*>[\s\S]*?<\/section>/)[0], /View all/);
+  assert.match(render("schedules"), /Managed second/);
+  parsed.data.visibility.schedule = false;
+  assert.doesNotMatch(render(), /id="schedules"/);
+  parsed.data.visibility.schedule = true;
+  data.schedules = [];
+  assert.doesNotMatch(render(), /id="schedules"/);
+});
 
 test("shared public view applies section minimums and zero restores automatic height", () => {
   const content = fixture();

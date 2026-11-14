@@ -9,6 +9,18 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      worship_schedules: {
+        Row: { id: string; day: string; time: string; service_name: string; note: string; sort_order: number; archived_at: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; day: string; time: string; service_name: string; note?: string; sort_order?: number; archived_at?: string | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; day?: string; time?: string; service_name?: string; note?: string; sort_order?: number; archived_at?: string | null; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
+      worship_schedule_legacy_draft: {
+        Row: { id: boolean; rows: Json; captured_at: string };
+        Insert: { id?: boolean; rows: Json; captured_at?: string };
+        Update: { id?: boolean; rows?: Json; captured_at?: string };
+        Relationships: [];
+      };
       landing_page_drafts: {
         Row: {
           id: boolean;
@@ -432,6 +444,10 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      move_worship_schedule: {
+        Args: { schedule_id: string; direction: string };
+        Returns: boolean;
+      };
       consume_event_registration_rate_limit: {
         Args: {
           p_request_hash: string;
