@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ContactDetails } from "@/components/public/contact-details";
+import { LandingPagePreviewFrame } from "@/components/admin/landing-page-preview-frame";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Field,
   FieldDescription,
@@ -24,13 +25,9 @@ import {
 } from "@/components/ui/field";
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import {
-  getLandingPageFontFamily,
-  getLandingPageTypographyStyleVariables,
-  getYouTubeVideoEmbedUrl,
   landingPageContactKeys,
   landingPageTextAlignments,
   landingPageThemeFonts,
-  type LandingPageBackgroundStyleVariables,
   getDefaultLandingPageContent,
   parseLandingPageContent,
   resetLandingPageSection,
@@ -39,7 +36,6 @@ import {
   type LandingPageNavigationKey,
   type LandingPageSectionKey,
   type LandingPageTextAlignment,
-  type LandingPageTypographyStyleVariables,
   type LandingPageThemeFont,
 } from "@/lib/landing-page";
 
@@ -478,7 +474,7 @@ export function LandingPageBuilder({
     if (
       !(await confirmAction(
         "Reset footer settings?",
-        "The footer title, text, text color, and spacing will return to their defaults in the draft.",
+        "The footer content, colors, and spacing will return to their defaults in the draft.",
         "Reset footer",
       ))
     ) {
@@ -767,7 +763,7 @@ export function LandingPageBuilder({
       <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border p-4">
         <h3 className="text-sm font-semibold">Image style and section background</h3>
         <Field>
-          <FieldLabel htmlFor={`${section}-min-height`}>Minimum section height</FieldLabel>
+          <FieldLabel htmlFor={`${section}-min-height`}>Minimum section height (px)</FieldLabel>
           <Input
             aria-describedby={`${section}-min-height-help`}
             id={`${section}-min-height`}
@@ -789,7 +785,7 @@ export function LandingPageBuilder({
             value={background.minHeight || ""}
           />
           <FieldDescription id={`${section}-min-height-help`}>
-            This is a minimum, not a fixed height. Enter 0 for Auto; content can make a section taller.
+            Set a minimum in pixels, or enter 0 for automatic height. Content and spacing can make the section taller, especially on smaller screens. Save and publish to update the live page.
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.minHeight`]} />
         </Field>
@@ -978,34 +974,6 @@ export function LandingPageBuilder({
     }));
   }
 
-  const previewWidth =
-    previewDevice === "mobile" ? "mx-auto max-w-[375px]" : "w-full";
-  const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(content.livestream.url);
-  const previewBackgroundStyle = (
-    section: LandingPageSectionKey,
-  ): CSSProperties & LandingPageBackgroundStyleVariables & LandingPageTypographyStyleVariables => {
-    const background = content.sectionBackgrounds[section];
-    const url = uploadedUrls[`background:${section}`];
-    return {
-      "--landing-section-background-image": url ? `url("${url}")` : "none",
-      "--landing-section-background-opacity": background.imageOpacity / 100,
-      "--landing-section-background-blur": `${background.imageBlur}px`,
-      backgroundColor: background.color || undefined,
-      minHeight: background.minHeight || undefined,
-      color: background.textColor || undefined,
-      textAlign: background.textAlign === "inherit" ? undefined : background.textAlign,
-      fontFamily: getLandingPageFontFamily(background.fontFamily),
-      ...getLandingPageTypographyStyleVariables(background.fontSizeScale),
-    };
-  };
-  const sectionTypographyAttributes = (section: LandingPageSectionKey) => {
-    const appearance = content.sectionBackgrounds[section];
-    return {
-      "data-section-text-align": appearance.textAlign === "inherit" ? undefined : "true",
-      "data-section-font-family": appearance.fontFamily === "inherit" ? undefined : "true",
-      "data-section-font-size": appearance.fontSizeScale === 100 ? undefined : "true",
-    };
-  };
   function draftActionButtons(compact = false) {
     return (
       <div className={`flex flex-wrap gap-2 ${compact ? "justify-end" : ""}`}>
@@ -1811,6 +1779,39 @@ export function LandingPageBuilder({
                     <FieldMessages messages={fieldErrors["footer.text"]} />
                   </Field>
                   <Field>
+                    <FieldLabel htmlFor="footer-background-color">Footer background color (optional)</FieldLabel>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Input
+                        className="h-11 w-16 p-1"
+                        id="footer-background-color"
+                        onChange={(event) => setContent((current) => ({
+                          ...current,
+                          footer: { ...current.footer, backgroundColor: event.target.value },
+                        }))}
+                        type="color"
+                        value={content.footer.backgroundColor || "#00525d"}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {content.footer.backgroundColor || "Using the theme background color"}
+                      </span>
+                      {content.footer.backgroundColor && (
+                        <Button
+                          onClick={() => setContent((current) => ({
+                            ...current,
+                            footer: { ...current.footer, backgroundColor: "" },
+                          }))}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          Use theme color
+                        </Button>
+                      )}
+                    </div>
+                    <FieldDescription>Choose a background with enough contrast against the footer text.</FieldDescription>
+                    <FieldMessages messages={fieldErrors["footer.backgroundColor"]} />
+                  </Field>
+                  <Field>
                     <FieldLabel htmlFor="footer-text-color">Footer text color (optional)</FieldLabel>
                     <div className="flex flex-wrap items-center gap-3">
                       <Input
@@ -1893,231 +1894,31 @@ export function LandingPageBuilder({
       </div>
 
       <aside className="xl:sticky xl:top-24">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Live preview</h2>
-            <p className="text-sm text-muted-foreground">Preview of the current draft</p>
+            <p className="text-sm text-muted-foreground">Shows your draft using the real landing page at the selected screen width.</p>
           </div>
           <div aria-label="Preview size" className="flex gap-2">
-            <Button
-              aria-pressed={previewDevice === "desktop"}
-              onClick={() => setPreviewDevice("desktop")}
-              size="sm"
-              type="button"
-              variant={previewDevice === "desktop" ? "default" : "outline"}
-            >
-              Desktop
-            </Button>
-            <Button
-              aria-pressed={previewDevice === "mobile"}
-              onClick={() => setPreviewDevice("mobile")}
-              size="sm"
-              type="button"
-              variant={previewDevice === "mobile" ? "default" : "outline"}
-            >
-              Mobile
-            </Button>
+            <Button aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")} size="sm" type="button" variant={previewDevice === "desktop" ? "default" : "outline"}>Desktop</Button>
+            <Button aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")} size="sm" type="button" variant={previewDevice === "mobile" ? "default" : "outline"}>Mobile</Button>
           </div>
         </div>
-        <div className={`overflow-hidden rounded-2xl border border-border bg-background p-3 transition-[max-width] ${previewWidth}`}>
-          <div className="max-h-[70vh] overflow-y-auto rounded-xl border border-border">
-            <div className="flex flex-col gap-4 p-4">
-              <header className="flex items-center justify-between gap-3 border-b border-border pb-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span
-                    className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-brand/15 bg-brand/5 text-[10px] font-bold text-brand"
-                    style={{ height: content.header.logoSize, width: content.header.logoSize }}
-                  >
-                    {uploadedUrls["header-logo"] ? (
-                      <Image
-                        alt={content.header.logo.alt}
-                        className="object-contain"
-                        fill
-                        sizes="96px"
-                        src={uploadedUrls["header-logo"]}
-                        unoptimized
-                      />
-                    ) : (
-                      "GC"
-                    )}
-                  </span>
-                  <span className="min-w-0 text-xs leading-tight font-semibold">
-                    {content.header.name}
-                    {content.header.subtitle && (
-                      <span className="block font-normal text-muted-foreground">
-                        {content.header.subtitle}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {previewDevice === "desktop" && (
-                  <nav aria-label="Preview navigation" className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-                    {content.header.navigationOrder.map((key) => (
-                      <span className="text-[10px] text-muted-foreground" key={key}>
-                        {navigationTitles[key]}
-                      </span>
-                    ))}
-                  </nav>
-                )}
-              </header>
-              {content.sectionOrder.map((section) => {
-                if (!content.visibility[section]) return null;
-                if (section === "hero" && content.hero.headline) {
-                  return (
-                    <section
-                      className="rounded-xl bg-brand p-5 text-white"
-                      data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined}
-                      data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined}
-                      {...sectionTypographyAttributes(section)}
-                      key={section}
-                      style={previewBackgroundStyle(section)}
-                    >
-                      {content.hero.image.path && uploadedUrls.hero && (
-                        <div className="relative mb-4 aspect-video overflow-hidden rounded-xl">
-                          <Image
-                            alt={content.hero.image.alt}
-                            className="object-cover"
-                            fill
-                            sizes="(max-width: 375px) 100vw, 600px"
-                            src={uploadedUrls.hero}
-                            unoptimized
-                          />
-                        </div>
-                      )}
-                      <p className="text-2xl font-semibold">{content.hero.headline}</p>
-                      {content.hero.subtext && <p className="mt-3 text-sm text-white/75">{content.hero.subtext}</p>}
-                      {content.hero.buttons.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {content.hero.buttons.map((button, index) => (
-                            <span className="rounded-full bg-white px-3 py-2 text-xs font-medium text-brand" key={`${button.label}-${index}`}>
-                              {button.label || "Button"}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  );
-                }
-                if (section === "welcome" && (content.welcome.text || content.welcome.image.path)) {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      {content.welcome.image.path && uploadedUrls.welcome && (
-                        <div className="relative mb-3 aspect-video overflow-hidden rounded-lg">
-                          <Image alt={content.welcome.image.alt} className="object-cover" fill sizes="320px" src={uploadedUrls.welcome} unoptimized />
-                        </div>
-                      )}
-                      {content.welcome.text && <p className="text-sm leading-6">{content.welcome.text}</p>}
-                    </section>
-                  );
-                }
-                if (section === "schedule" && content.schedule.rows.length > 0) {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      <p className="font-semibold">Worship schedule</p>
-                      {content.schedule.rows.map((row) => (
-                        <p className="mt-2 text-sm text-muted-foreground" key={row.id}>
-                          {row.day} {row.time} · {row.serviceName}
-                        </p>
-                      ))}
-                    </section>
-                  );
-                }
-                if (section === "livestream" && content.livestream.url) {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      <p className="font-semibold">{content.livestream.label || "Livestream"}</p>
-                      {livestreamEmbedUrl ? (
-                        <div className="mx-auto mt-3 aspect-video w-full max-w-3xl overflow-hidden rounded-lg bg-black">
-                          <iframe
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            allowFullScreen
-                            className="size-full"
-                            loading="lazy"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            src={livestreamEmbedUrl}
-                            title={content.livestream.label || "YouTube livestream preview"}
-                          />
-                        </div>
-                      ) : (
-                        <a
-                          className="mt-2 block break-all text-sm text-muted-foreground underline"
-                          href={content.livestream.url}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          Open on YouTube
-                        </a>
-                      )}
-                    </section>
-                  );
-                }
-                if (section === "announcements" || section === "events") {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      <p className="font-semibold">{content[section].title}</p>
-                      {content[section].intro && <p className="mt-2 text-sm text-muted-foreground">{content[section].intro}</p>}
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {content[section].count} items · existing {section} data
-                      </p>
-                    </section>
-                  );
-                }
-                if (section === "devotionals") {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      <p className="font-semibold">Devotionals</p>
-                      <p className="mt-2 text-sm text-muted-foreground">{content.devotionals.count} items linking to /devotionals</p>
-                    </section>
-                  );
-                }
-                if (section === "contact" && (
-                  content.contact.address ||
-                  content.contact.phone ||
-                  content.contact.email ||
-                  content.contact.facebookUrl ||
-                  content.contact.mapUrl
-                )) {
-                  return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
-                      <p className="font-semibold">Contact and location</p>
-                      <ContactDetails contact={content.contact} imageUrls={uploadedUrls} sectionTextColor={content.sectionBackgrounds.contact.textColor} />
-                    </section>
-                  );
-                }
-                return null;
-              })}
-              <footer
-                className="rounded-xl bg-brand px-4 text-white"
-                data-section-text-align={content.footer.textAlign === "inherit" ? undefined : "true"}
-                data-section-font-family={content.footer.fontFamily === "inherit" ? undefined : "true"}
-                data-section-font-size={content.footer.fontSizeScale === 100 ? undefined : "true"}
-                style={{
-                  paddingBlock: content.footer.paddingY,
-                  textAlign: content.footer.textAlign === "inherit" ? undefined : content.footer.textAlign,
-                  fontFamily: getLandingPageFontFamily(content.footer.fontFamily),
-                  ...getLandingPageTypographyStyleVariables(content.footer.fontSizeScale),
-                }}
-              >
-                {content.footer.title && (
-                  <p
-                    className="text-xs font-semibold"
-                    style={{ color: content.footer.textColor || undefined }}
-                  >
-                    {content.footer.title}
-                  </p>
-                )}
-                {content.footer.text && (
-                  <p
-                    className="mt-2 text-[10px] leading-5"
-                    style={{ color: content.footer.textColor || undefined }}
-                  >
-                    {content.footer.text}
-                  </p>
-                )}
-              </footer>
+        <LandingPagePreviewFrame content={content} imageUrls={uploadedUrls} device={previewDevice} />
+        <Dialog>
+          <DialogTrigger render={<Button className="mt-3" type="button" variant="outline" />}>Enlarge preview</DialogTrigger>
+          <DialogContent className="h-[90dvh] w-[96vw] max-w-none grid-rows-[auto_auto_1fr] sm:max-w-none">
+            <DialogHeader>
+              <DialogTitle>Landing page preview</DialogTitle>
+              <DialogDescription>Preview your unpublished changes at the selected screen width.</DialogDescription>
+            </DialogHeader>
+            <div aria-label="Preview size" className="flex gap-2">
+              <Button aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")} size="sm" type="button" variant={previewDevice === "desktop" ? "default" : "outline"}>Desktop</Button>
+              <Button aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")} size="sm" type="button" variant={previewDevice === "mobile" ? "default" : "outline"}>Mobile</Button>
             </div>
-          </div>
-        </div>
+            <LandingPagePreviewFrame content={content} imageUrls={uploadedUrls} device={previewDevice} expanded />
+          </DialogContent>
+        </Dialog>
       </aside>
     </div>
   );

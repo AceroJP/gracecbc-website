@@ -10,7 +10,7 @@ export function PublicFooter({
   footer: LandingPageContent["footer"];
 }) {
   return (
-    <footer className="bg-brand text-white">
+    <footer className="bg-brand text-white" style={{ backgroundColor: footer.backgroundColor || undefined }}>
       <div
         className="mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-12"
         data-section-text-align={footer.textAlign === "inherit" ? undefined : "true"}
