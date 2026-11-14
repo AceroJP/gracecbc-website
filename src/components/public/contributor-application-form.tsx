@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import type React from "react";
 import Swal from "sweetalert2";
 import { submitContributorApplication, type ContributorApplicationState } from "@/app/(public)/devotionals/apply/actions";
@@ -11,8 +11,12 @@ import { Label } from "@/components/ui/label";
 const initialState: ContributorApplicationState = { status: "idle" };
 
 export function ContributorApplicationForm() {
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [guidelines, setGuidelines] = useState(false);
   const [state, formAction, pending] = useActionState(
     submitContributorApplication,
     initialState,
@@ -39,43 +43,52 @@ export function ContributorApplicationForm() {
     });
   }, [pending, state.message, state.status]);
 
+  if (state.status === "success") {
+    return (
+      <div aria-live="polite" className="mt-10 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-200">
+        {state.message}
+      </div>
+    );
+  }
+
   return (
     <form
       action={formAction}
       className="mt-10 space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8"
       onSubmit={(event) => {
+        event.preventDefault();
         if (password !== confirmPassword) {
-          event.preventDefault();
           void Swal.fire({
             icon: "warning",
             title: "Passwords do not match",
             text: "Please make both password fields identical before submitting.",
             confirmButtonText: "Okay",
           });
+          return;
         }
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
       }}
     >
-      {state.status !== "idle" && (
+      {state.status === "error" && (
         <div
           aria-live="polite"
-          className={
-            state.status === "success"
-              ? "rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-200"
-              : "rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
-          }
+          className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
         >
           {state.message}
         </div>
       )}
       <div className="grid gap-6 sm:grid-cols-2">
-        <Field id="fullName" label="Full name" autoComplete="name" />
+        <Field id="fullName" label="Full name" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} />
         <Field
           id="username"
           label="Preferred username"
           autoComplete="username"
           description="3–32 letters, numbers, periods, underscores, or hyphens."
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
         />
-        <Field id="email" label="Email address" type="email" autoComplete="email" />
+        <Field id="email" label="Email address" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
         <PasswordField
           password={password}
           onChange={setPassword}
@@ -107,7 +120,7 @@ export function ContributorApplicationForm() {
         </div>
       </div>
       <label className="flex items-start gap-3 text-sm leading-6 text-muted-foreground">
-        <input className="mt-1 size-4 accent-brand" name="guidelines" type="checkbox" />
+        <input className="mt-1 size-4 accent-brand" name="guidelines" type="checkbox" required checked={guidelines} onChange={(event) => setGuidelines(event.target.checked)} />
         <span>
           I agree to follow the contributor guidelines and understand that every
           devotional is subject to administrator review.

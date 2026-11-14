@@ -16,7 +16,7 @@ const applicationSchema = z
         /^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$/,
         "Use 3–32 letters, numbers, periods, underscores, or hyphens.",
       ),
-    email: z.email().trim().toLowerCase(),
+    email: z.string().trim().toLowerCase().pipe(z.email()),
     password: z.string().min(10).max(128),
     confirmPassword: z.string(),
     guidelines: z.literal("on"),
@@ -54,15 +54,18 @@ export async function submitContributorApplication(
   });
 
   if (!parsed.success) {
-    const passwordMismatch = parsed.error.issues.some(
-      (issue) => issue.path[0] === "confirmPassword",
-    );
-    return {
-      status: "error",
-      message: passwordMismatch
-        ? "Passwords do not match."
-        : "Check the form details and try again.",
+    const messages: Record<string, string> = {
+      fullName: "Enter your full name (up to 160 characters).",
+      username: "Use a username with 3-32 letters, numbers, periods, underscores, or hyphens, starting with a letter or number.",
+      email: "Enter a valid email address.",
+      password: "Use a password between 10 and 128 characters.",
+      confirmPassword: "Passwords do not match.",
+      guidelines: "Please agree to the contributor guidelines.",
     };
+    const field = parsed.error.issues[0]?.path[0];
+    return contributorApplicationError(
+      typeof field === "string" ? messages[field] : undefined,
+    );
   }
 
   const requestHeaders = await headers();
