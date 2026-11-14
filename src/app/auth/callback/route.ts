@@ -104,12 +104,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(safeNext, request.url));
   }
 
+  if (!userData.user.email_confirmed_at) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/devotionals/apply?error=verification", request.url));
+  }
+
   const privilegedClient = createPrivilegedClient();
   const now = new Date().toISOString();
   const { data: contributor, error: contributorError } = await privilegedClient
     .from("devotional_contributors")
     .update({
-      email_verified_at: userData.user.email_confirmed_at ?? now,
+      email_verified_at: userData.user.email_confirmed_at,
       status: "pending_admin_approval",
       updated_at: now,
     })

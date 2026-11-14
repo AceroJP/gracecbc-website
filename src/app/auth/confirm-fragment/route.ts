@@ -16,11 +16,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That verification link is invalid or expired." }, { status: 400 });
   }
 
+  if (!data.user.email_confirmed_at) {
+    return NextResponse.json({ error: "Please confirm your email before continuing." }, { status: 400 });
+  }
+
   const now = new Date().toISOString();
   const { data: contributor, error: contributorError } = await client
     .from("devotional_contributors")
     .update({
-      email_verified_at: data.user.email_confirmed_at ?? now,
+      email_verified_at: data.user.email_confirmed_at,
       status: "pending_admin_approval",
       updated_at: now,
     })

@@ -81,6 +81,18 @@ export async function submitDevotional(
     );
 
     const result = data?.[0];
+    if (!error && result?.status === "invalid_grant") {
+      return {
+        status: "error",
+        message: "Your writing access has expired. Verify your credentials again.",
+      };
+    }
+    if (!error && result?.status === "unauthorized") {
+      return {
+        status: "error",
+        message: "Your account is not authorized to submit devotionals. Please contact the church administrator.",
+      };
+    }
     if (error || result?.status !== "submitted") {
       console.error("Unable to submit devotional.", error ?? result);
       return {

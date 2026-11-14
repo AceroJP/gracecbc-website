@@ -186,6 +186,23 @@ export async function reviewContributorApplicationAction(
     return { status: "error", message: "That application no longer exists." };
   }
 
+  if (parsed.data.action === "approve" || parsed.data.action === "reactivate") {
+    const contributor = Array.isArray(application.devotional_contributors)
+      ? application.devotional_contributors[0]
+      : application.devotional_contributors;
+    if (!contributor?.auth_user_id || !contributor.email_verified_at) {
+      return { status: "error", message: "The contributor must verify their email before approval." };
+    }
+    const { data: authUser, error: authError } =
+      await client.auth.admin.getUserById(contributor.auth_user_id);
+    if (authError) {
+      throw new Error("Unable to check contributor email confirmation.", { cause: authError });
+    }
+    if (!authUser.user?.email_confirmed_at) {
+      return { status: "error", message: "The contributor must verify their email before approval." };
+    }
+  }
+
   if (parsed.data.action === "delete_unverified") {
     const contributor = Array.isArray(application.devotional_contributors)
       ? application.devotional_contributors[0]
@@ -364,7 +381,7 @@ export async function updateContributorAction(
   const client = createPrivilegedClient();
   const { data: contributor, error: contributorError } = await client
     .from("devotional_contributors")
-    .select("id, auth_user_id, full_name, username, status")
+    .select("id, auth_user_id, full_name, username, status, email_verified_at")
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (contributorError) {
@@ -391,6 +408,12 @@ export async function updateContributorAction(
     await client.auth.admin.getUserById(contributor.auth_user_id);
   if (authLookupError || !authUser.user?.email) {
     throw new Error("Unable to load contributor email.", { cause: authLookupError });
+  }
+  if (
+    parsed.data.status === "approved" &&
+    (!contributor.email_verified_at || !authUser.user.email_confirmed_at)
+  ) {
+    return { status: "error", message: "The contributor must verify their email before approval." };
   }
   const previousEmail = authUser.user.email;
   const emailChanged = previousEmail.toLowerCase() !== parsed.data.email;

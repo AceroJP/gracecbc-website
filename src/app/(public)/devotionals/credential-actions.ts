@@ -139,11 +139,27 @@ export async function verifyContributorCredentials(
       });
       return {
         status: "error",
-        message: credentialHelpMessage,
+        message: signInError.code === "email_not_confirmed"
+          ? "Your email is not confirmed yet. Please check your verification email or contact the church administrator."
+          : signInError.code === "invalid_credentials"
+            ? credentialHelpMessage
+            : accessUnavailableMessage,
       };
     }
 
-    if (!contributor.email_verified_at) {
+    if (!contributor.email_verified_at && authUser.user?.email_confirmed_at) {
+      const { error: verificationError } = await privilegedClient
+        .from("devotional_contributors")
+        .update({ email_verified_at: authUser.user.email_confirmed_at })
+        .eq("id", contributor.id)
+        .is("email_verified_at", null);
+
+      if (verificationError) {
+        throw new Error("Unable to synchronize contributor email verification.", {
+          cause: verificationError,
+        });
+      }
+    } else if (!contributor.email_verified_at) {
       console.warn("Contributor account has not verified its email.", {
         contributorId: contributor.id,
       });

@@ -28,11 +28,21 @@ export async function signInAction(
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
     if (error) {
       return {
         error: "Sign-in failed. Check your email and password, then try again.",
+      };
+    }
+
+    if (data.user?.app_metadata?.role !== "admin") {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        console.error("Unable to revoke non-admin sign-in session.", signOutError);
+      }
+      return {
+        error: "This login is for administrators only. Contributors can use Write a Devotional on the Devotionals page.",
       };
     }
   } catch (error) {
