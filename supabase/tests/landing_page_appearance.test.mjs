@@ -36,7 +36,7 @@ function fixture() {
   content.hero.headline = "Welcome";
   content.welcome.text = "Welcome message";
   content.schedule.rows = [{ id: "00000000-0000-4000-8000-000000000001", day: "Sunday", time: "10 AM", serviceName: "Worship", note: "" }];
-  content.livestream.url = "https://youtube.com/watch?v=abcdefghijk";
+  content.livestream.items = [{ id: "00000000-0000-4000-8000-000000000001", url: "https://youtube.com/watch?v=abcdefghijk", label: "" }];
   content.contact.address = "Church address";
   content.footer.backgroundColor = "#123456";
   return content;
@@ -68,6 +68,7 @@ test("footer uses the selected background and retains the theme fallback", () =>
 });
 
 function loadLandingPageView() {
+  const { LivestreamSlider } = loadModule("src/components/public/livestream-slider.tsx", { "@/lib/landing-page": landingPage });
   return loadModule("src/components/public/landing-page-view.tsx", {
     "next/link": { __esModule: true, default: passthrough },
     "next/image": { __esModule: true, default: () => null },
@@ -76,6 +77,7 @@ function loadLandingPageView() {
     "@/lib/registration": { parseRegistrationFields: () => [] },
     "@/lib/landing-page": landingPage,
     "@/components/public/contact-details": { ContactDetails: () => null },
+    "@/components/public/livestream-slider": { LivestreamSlider },
     "@/components/public/registration-form": { RegistrationForm: () => null },
     "@/components/public/announcement-viewer": { AnnouncementViewer: passthrough },
   }).LandingPageView;
@@ -109,6 +111,131 @@ test("shared public view applies section minimums and zero restores automatic he
     const tag = html.match(new RegExp(`<section[^>]*id="${id}"[^>]*>`))?.[0];
     assert.doesNotMatch(tag, /min-height:/);
   }
+});
+
+test("section sizing accepts older saved content and validates new settings", () => {
+  const content = fixture();
+  for (const section of landingPage.landingPageSectionKeys) delete content.sectionBackgrounds[section].paddingY;
+  delete content.livestream.videoWidth;
+  let parsed = landingPage.parseLandingPageContent(content);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.sectionBackgrounds.hero.paddingY, null);
+  assert.equal(parsed.data.livestream.videoWidth, 768);
+
+  content.sectionBackgrounds.livestream.minHeight = 2500;
+  content.sectionBackgrounds.livestream.paddingY = 0;
+  content.livestream.videoWidth = 320;
+  parsed = landingPage.parseLandingPageContent(JSON.parse(JSON.stringify(content)));
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.sectionBackgrounds.livestream.paddingY, 0);
+  assert.equal(parsed.data.livestream.videoWidth, 320);
+  const reset = landingPage.resetLandingPageSection(parsed.data, "livestream");
+  assert.equal(reset.sectionBackgrounds.livestream.paddingY, null);
+  assert.equal(reset.livestream.videoWidth, 768);
+
+  content.sectionBackgrounds.livestream.minHeight = 10001;
+  assert.equal(landingPage.parseLandingPageContent(content).success, false);
+  content.sectionBackgrounds.livestream.minHeight = 0;
+  content.sectionBackgrounds.livestream.paddingY = -1;
+  assert.equal(landingPage.parseLandingPageContent(content).success, false);
+  content.sectionBackgrounds.livestream.paddingY = 0;
+  content.livestream.videoWidth = 239;
+  assert.equal(landingPage.parseLandingPageContent(content).success, false);
+});
+
+test("legacy livestream settings migrate without losing the link or label", () => {
+  const content = fixture();
+  content.livestream = { url: "https://youtube.com/watch?v=abcdefghijk", label: "Sunday service", videoWidth: 320 };
+  const parsed = landingPage.parseLandingPageContent(content);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.livestream.items.length, 1);
+  assert.equal(parsed.data.livestream.items[0].url, content.livestream.url);
+  assert.equal(parsed.data.livestream.items[0].label, "Sunday service");
+  assert.equal(parsed.data.livestream.itemsToShow, 9);
+  assert.equal(parsed.data.livestream.videoWidth, 320);
+  const restored = landingPage.parseLandingPageContent(JSON.parse(JSON.stringify(parsed.data)));
+  assert.equal(restored.success, true);
+  assert.equal(restored.data.livestream.items[0].label, "Sunday service");
+});
+
+test("video URLs use trusted embeds and fall back safely for other links", () => {
+  assert.equal(landingPage.getLivestreamVideoUrls("https://youtu.be/abcdefghijk").embedUrl, "https://www.youtube-nocookie.com/embed/abcdefghijk");
+  assert.equal(landingPage.getLivestreamVideoUrls("https://vimeo.com/12345").embedUrl, "https://player.vimeo.com/video/12345");
+  assert.equal(landingPage.getLivestreamVideoUrls("https://vimeo.com/12345?h=private").embedUrl, null);
+  const facebook = landingPage.getLivestreamVideoUrls("https://www.facebook.com/church/videos/12345/");
+  const embed = new URL(facebook.embedUrl);
+  assert.equal(embed.hostname, "www.facebook.com");
+  assert.equal(embed.searchParams.get("href"), facebook.sourceUrl);
+  assert.equal(landingPage.getLivestreamVideoUrls("https://fb.watch/example").embedUrl, null);
+  assert.equal(landingPage.getLivestreamVideoUrls("https://facebook.com.attacker.example/watch?v=123").embedUrl, null);
+  assert.equal(landingPage.getLivestreamVideoUrls("javascript:alert(1)"), null);
+  const content = fixture();
+  content.livestream.items[0].url = "javascript:alert(1)";
+  assert.equal(landingPage.parseLandingPageContent(content).success, false);
+});
+
+test("livestream slider limits items and uses a responsive single-row layout", () => {
+  const content = fixture();
+  content.livestream.items = Array.from({ length: 12 }, (_, index) => ({
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    url: index === 1 ? "https://example.com/live" : `https://youtube.com/watch?v=abcdefghijk`,
+    label: `Video label ${index + 1}`,
+  }));
+  const { LivestreamSlider } = loadModule("src/components/public/livestream-slider.tsx", { "@/lib/landing-page": landingPage });
+  for (const count of [3, 6, 9, 12]) {
+    content.livestream.itemsToShow = count;
+    const parsed = landingPage.parseLandingPageContent(content);
+    assert.equal(parsed.success, true);
+    const html = renderToStaticMarkup(React.createElement(LivestreamSlider, { settings: parsed.data.livestream }));
+    assert.equal((html.match(/aria-roledescription="slide"/g) ?? []).length, 1);
+    assert.equal((html.match(/<iframe/g) ?? []).length, 1);
+    assert.match(html, /grid-cols-1 items-start gap-6 md:grid-cols-2/);
+    assert.match(html, /aria-label="Next videos"/);
+    assert.doesNotMatch(html, new RegExp(`Video label ${count + 1}(?:<|\\b)`));
+    assert.doesNotMatch(html, /border-border/);
+    assert.doesNotMatch(html, /overflow-x-auto/);
+  }
+  content.livestream.items = [content.livestream.items[1]];
+  const html = renderToStaticMarkup(React.createElement(LivestreamSlider, { settings: content.livestream }));
+  assert.match(html, /Open video on its original site/);
+  assert.match(html, /grid-column:1 \/ -1/);
+});
+
+test("each section uses its own spacing and the livestream width stays responsive", () => {
+  const content = fixture();
+  const ids = ["landing-page", "welcome", "schedules", "livestream", "announcements", "events", "devotionals", "contact"];
+  for (const [index, section] of landingPage.landingPageSectionKeys.entries()) {
+    content.sectionBackgrounds[section].paddingY = index * 8;
+  }
+  content.livestream.videoWidth = 320;
+  const View = loadLandingPageView();
+  const html = renderToStaticMarkup(React.createElement(View, { landingPage: content, data: publicData(), imageUrls: {} }));
+  for (const [index, id] of ids.entries()) {
+    const section = html.match(new RegExp(`<section[^>]*id="${id}"[^>]*>[\\s\\S]*?</section>`))?.[0];
+    assert.ok(section, `Missing ${id} section`);
+    assert.match(section, new RegExp(`padding-block:${index * 8}${index ? "px" : "(?:px)?"}`));
+  }
+  assert.match(html, /class="mx-auto w-full" style="max-width:320px"[\s\S]*?<h2[^>]*>Livestream<\/h2>[\s\S]*?aspect-video w-full/);
+});
+
+test("livestream title inherits the section typography independently of video width", () => {
+  const content = fixture();
+  content.livestream.items[0].label = "Sunday service";
+  content.livestream.videoWidth = 320;
+  content.sectionBackgrounds.livestream.textAlign = "right";
+  content.sectionBackgrounds.livestream.fontFamily = "theme-mono";
+  content.sectionBackgrounds.livestream.fontSizeScale = 150;
+  const View = loadLandingPageView();
+  const html = renderToStaticMarkup(React.createElement(View, { landingPage: content, data: publicData(), imageUrls: {} }));
+  const section = html.match(/<section[^>]*id="livestream"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(section);
+  assert.match(section, /data-section-text-align="true"/);
+  assert.match(section, /data-section-font-family="true"/);
+  assert.match(section, /data-section-font-size="true"/);
+  assert.match(section, /text-align:right/);
+  assert.match(section, /font-family:var\(--font-mono\)/);
+  assert.match(section, /--text-lg:1\.6875rem/);
+  assert.match(section, /style="max-width:320px"[\s\S]*?<h2[^>]*>Sunday service<\/h2>[\s\S]*?<iframe/);
 });
 
 test("shared view honors draft visibility, counts, order and background images", () => {

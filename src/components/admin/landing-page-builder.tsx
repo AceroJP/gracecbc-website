@@ -761,13 +761,13 @@ export function LandingPageBuilder({
     const background = content.sectionBackgrounds[section];
     return (
       <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border p-4">
-        <h3 className="text-sm font-semibold">Image style and section background</h3>
+        <h3 className="text-sm font-semibold">Section size and background</h3>
         <Field>
           <FieldLabel htmlFor={`${section}-min-height`}>Minimum section height (px)</FieldLabel>
           <Input
             aria-describedby={`${section}-min-height-help`}
             id={`${section}-min-height`}
-            max={1600}
+            max={10000}
             min={0}
             onChange={(event) => setContent((current) => ({
               ...current,
@@ -785,10 +785,59 @@ export function LandingPageBuilder({
             value={background.minHeight || ""}
           />
           <FieldDescription id={`${section}-min-height-help`}>
-            Set a minimum in pixels, or enter 0 for automatic height. Content and spacing can make the section taller, especially on smaller screens. Save and publish to update the live page.
+            This sets the minimum, not an exact height. Enter 0 for automatic height. Content may need more space, especially on mobile. To make a section shorter, reduce its spacing{section === "livestream" ? " or video width" : ""}. Save and publish to update the live page.
           </FieldDescription>
           <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.minHeight`]} />
         </Field>
+        <Field>
+          <FieldLabel htmlFor={`${section}-padding-y`}>Top and bottom spacing (px)</FieldLabel>
+          <Input
+            aria-describedby={`${section}-padding-y-help`}
+            id={`${section}-padding-y`}
+            max={256}
+            min={0}
+            onChange={(event) => setContent((current) => ({
+              ...current,
+              sectionBackgrounds: {
+                ...current.sectionBackgrounds,
+                [section]: {
+                  ...current.sectionBackgrounds[section],
+                  paddingY: event.target.value === "" ? null : Number(event.target.value),
+                },
+              },
+            }))}
+            placeholder="Default"
+            step={1}
+            type="number"
+            value={background.paddingY ?? ""}
+          />
+          <FieldDescription id={`${section}-padding-y-help`}>
+            Set the space above and below the content. Enter 0 for no extra spacing, or clear the field to restore the default.
+          </FieldDescription>
+          <FieldMessages messages={fieldErrors[`sectionBackgrounds.${section}.paddingY`]} />
+        </Field>
+        {section === "livestream" && (
+          <Field>
+            <FieldLabel htmlFor="livestream-video-width">Video maximum width (px)</FieldLabel>
+            <Input
+              aria-describedby="livestream-video-width-help"
+              id="livestream-video-width"
+              max={768}
+              min={240}
+              onChange={(event) => setContent((current) => ({
+                ...current,
+                livestream: { ...current.livestream, videoWidth: Number(event.target.value) },
+              }))}
+              step={8}
+              type="range"
+              value={content.livestream.videoWidth}
+            />
+            <FieldDescription id="livestream-video-width-help">
+              {content.livestream.videoWidth} px maximum. A smaller video can make this section shorter; it still fits narrower screens.
+            </FieldDescription>
+            <FieldMessages messages={fieldErrors["livestream.videoWidth"]} />
+          </Field>
+        )}
         {imageFields(slot, "1920 × 1080 px", "Background image")}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
@@ -1487,36 +1536,83 @@ export function LandingPageBuilder({
                 {section === "livestream" && (
                   <>
                     <Field>
-                      <FieldLabel htmlFor="livestream-url">YouTube URL</FieldLabel>
+                      <FieldLabel htmlFor="livestream-items-to-show">Videos to include in slider</FieldLabel>
                       <Input
-                        aria-invalid={Boolean(fieldErrors["livestream.url"])}
-                        id="livestream-url"
+                        aria-describedby="livestream-count-help"
+                        aria-invalid={Boolean(fieldErrors["livestream.itemsToShow"])}
+                        id="livestream-items-to-show"
+                        min={1}
+                        max={100}
                         onChange={(event) => setContent((current) => ({
                           ...current,
-                          livestream: { ...current.livestream, url: event.target.value },
+                          livestream: { ...current.livestream, itemsToShow: Number(event.target.value) },
                         }))}
-                        placeholder="https://www.youtube.com/..."
-                        type="url"
-                        value={content.livestream.url}
+                        type="number"
+                        value={content.livestream.itemsToShow}
                       />
-                      <FieldDescription>
-                        Video and live-video URLs embed in the homepage. Channel URLs without a specific video remain a YouTube link.
+                      <FieldDescription id="livestream-count-help">
+                        Choose 3, 6, 9, or another number up to 100. Visitors see two videos at a time on wider screens and one on mobile; extra videos stay saved but are hidden until you increase this number.
                       </FieldDescription>
-                      <FieldMessages messages={fieldErrors["livestream.url"]} />
+                      <FieldMessages messages={fieldErrors["livestream.itemsToShow"]} />
                     </Field>
-                    <Field>
-                      <FieldLabel htmlFor="livestream-label">Optional label</FieldLabel>
-                      <Input
-                        id="livestream-label"
-                        maxLength={80}
-                        onChange={(event) => setContent((current) => ({
-                          ...current,
-                          livestream: { ...current.livestream, label: event.target.value },
-                        }))}
-                        placeholder="Live now or Next stream"
-                        value={content.livestream.label}
-                      />
-                    </Field>
+                    {content.livestream.items.map((video, index) => (
+                      <div className="flex flex-col gap-4 rounded-xl border border-border p-4" key={video.id}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold">Video {index + 1}</h3>
+                          <div className="flex flex-wrap gap-2">
+                            <Button disabled={index === 0} onClick={() => setContent((current) => {
+                              const items = [...current.livestream.items];
+                              [items[index - 1], items[index]] = [items[index], items[index - 1]];
+                              return { ...current, livestream: { ...current.livestream, items } };
+                            })} size="sm" type="button" variant="outline">Move up</Button>
+                            <Button disabled={index === content.livestream.items.length - 1} onClick={() => setContent((current) => {
+                              const items = [...current.livestream.items];
+                              [items[index], items[index + 1]] = [items[index + 1], items[index]];
+                              return { ...current, livestream: { ...current.livestream, items } };
+                            })} size="sm" type="button" variant="outline">Move down</Button>
+                            <Button onClick={() => setContent((current) => ({
+                              ...current,
+                              livestream: { ...current.livestream, items: current.livestream.items.filter((item) => item.id !== video.id) },
+                            }))} size="sm" type="button" variant="outline">Remove</Button>
+                          </div>
+                        </div>
+                        <Field>
+                          <FieldLabel htmlFor={`livestream-url-${video.id}`}>Video or live link</FieldLabel>
+                          <Input
+                            aria-invalid={Boolean(fieldErrors[`livestream.items.${index}.url`])}
+                            id={`livestream-url-${video.id}`}
+                            onChange={(event) => setContent((current) => ({
+                              ...current,
+                              livestream: { ...current.livestream, items: current.livestream.items.map((item) => item.id === video.id ? { ...item, url: event.target.value } : item) },
+                            }))}
+                            placeholder="https://www.youtube.com/..."
+                            type="url"
+                            value={video.url}
+                          />
+                          <FieldDescription>YouTube, supported Facebook videos, and public Vimeo videos can play here. Other links open on their original site.</FieldDescription>
+                          <FieldMessages messages={fieldErrors[`livestream.items.${index}.url`]} />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={`livestream-label-${video.id}`}>Optional label</FieldLabel>
+                          <Input
+                            id={`livestream-label-${video.id}`}
+                            maxLength={80}
+                            onChange={(event) => setContent((current) => ({
+                              ...current,
+                              livestream: { ...current.livestream, items: current.livestream.items.map((item) => item.id === video.id ? { ...item, label: event.target.value } : item) },
+                            }))}
+                            placeholder="Live now or Next stream"
+                            value={video.label}
+                          />
+                          <FieldMessages messages={fieldErrors[`livestream.items.${index}.label`]} />
+                        </Field>
+                      </div>
+                    ))}
+                    <FieldMessages messages={fieldErrors["livestream.items"]} />
+                    <Button className="w-fit" disabled={content.livestream.items.length >= 100} onClick={() => setContent((current) => ({
+                      ...current,
+                      livestream: { ...current.livestream, items: [...current.livestream.items, { id: crypto.randomUUID(), url: "", label: "" }] },
+                    }))} type="button" variant="outline">Add video</Button>
                   </>
                 )}
 

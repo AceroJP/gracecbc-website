@@ -112,6 +112,9 @@ const emptyOrWebUrl = z.union([
   z.literal(""),
   z.string().max(2048).url().refine((value) => /^https?:\/\//i.test(value)),
 ]);
+const videoUrl = z.string().trim().min(1, "Enter a video link.").max(2048)
+  .url("Enter a valid video link.")
+  .refine((value) => /^https?:\/\//i.test(value), "Use an http or https link.");
 const buttonUrl = z
   .string()
   .trim()
@@ -159,6 +162,7 @@ const defaultBackground = {
   fontFamily: "inherit" as const,
   fontSizeScale: 100,
   minHeight: 0,
+  paddingY: null as number | null,
   imageOpacity: 100,
   imageBlur: 0,
 };
@@ -170,7 +174,8 @@ const backgroundSchema = z.object({
   textAlign: z.enum(landingPageTextAlignments).default("inherit"),
   fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
   fontSizeScale: z.number().int().min(75).max(150).default(100),
-  minHeight: z.number().int().min(0).max(1600).default(0),
+  minHeight: z.number().int().min(0).max(10000).default(0),
+  paddingY: z.number().int().min(0).max(256).nullable().default(null),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
 });
@@ -181,7 +186,8 @@ const heroBackgroundSchema = z.object({
   textAlign: z.enum(landingPageTextAlignments).default("inherit"),
   fontFamily: z.enum(landingPageThemeFonts).default("inherit"),
   fontSizeScale: z.number().int().min(75).max(150).default(100),
-  minHeight: z.number().int().min(0).max(1600).default(580),
+  minHeight: z.number().int().min(0).max(10000).default(580),
+  paddingY: z.number().int().min(0).max(256).nullable().default(null),
   imageOpacity: z.number().int().min(0).max(100).default(100),
   imageBlur: z.number().int().min(0).max(20).default(0),
 });
@@ -274,21 +280,25 @@ const builderContentSchema = z.object({
       note: text(300),
     })).max(20),
   }),
-  livestream: z.object({
-    url: emptyOrWebUrl,
-    label: text(80),
-  }).superRefine(({ url }, context) => {
-    if (url) {
-      const host = URL.canParse(url) ? new URL(url).hostname.toLowerCase() : "";
-      if (host !== "youtu.be" && !host.endsWith(".youtube.com") && host !== "youtube.com") {
-        context.addIssue({
-          code: "custom",
-          path: ["url"],
-          message: "Enter a YouTube URL.",
-        });
-      }
-    }
-  }),
+  livestream: z.preprocess((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const saved = value as Record<string, unknown>;
+    if (saved.items !== undefined) return value;
+    return {
+      ...saved,
+      items: typeof saved.url === "string" && saved.url
+        ? [{ id: "00000000-0000-4000-8000-000000000001", url: saved.url, label: saved.label ?? "" }]
+        : [],
+    };
+  }, z.object({
+    items: z.array(z.object({
+      id: z.string().uuid(),
+      url: videoUrl,
+      label: text(80),
+    })).max(100).default([]),
+    itemsToShow: z.number().int().min(1).max(100).default(9),
+    videoWidth: z.number().int().min(240).max(768).default(768),
+  })),
   contact: z.object({
     address: text(500),
     phone: text(50),
@@ -332,8 +342,8 @@ const builderContentSchema = z.object({
     ],
     [
       "livestream",
-      Boolean(content.livestream.url),
-      "Add a YouTube URL before showing the livestream section.",
+      content.livestream.items.length > 0,
+      "Add a video link before showing the livestream section.",
     ],
     [
       "announcements",
@@ -394,7 +404,7 @@ const defaultLandingPageContent: LandingPageContent = {
     image: { path: null, alt: "" },
   },
   schedule: { rows: [] },
-  livestream: { url: "", label: "" },
+  livestream: { items: [], itemsToShow: 9, videoWidth: 768 },
   contact: {
     address: "",
     phone: "",
@@ -452,6 +462,30 @@ export function getYouTubeVideoEmbedUrl(value: string): string | null {
   }
 
   return `https://www.youtube-nocookie.com/embed/${videoId}`;
+}
+
+export function getLivestreamVideoUrls(value: string) {
+  if (!URL.canParse(value)) return null;
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const sourceUrl = url.toString();
+  const youtubeUrl = getYouTubeVideoEmbedUrl(sourceUrl);
+  if (youtubeUrl) return { sourceUrl, embedUrl: youtubeUrl };
+
+  const host = url.hostname.toLowerCase();
+  if (host === "vimeo.com" || host === "www.vimeo.com" || host === "player.vimeo.com") {
+    const match = url.pathname.match(/^\/(?:video\/)?(\d+)\/?$/);
+    if (match && !url.searchParams.has("h")) return { sourceUrl, embedUrl: `https://player.vimeo.com/video/${match[1]}` };
+  }
+  if ((host === "facebook.com" || host === "www.facebook.com" || host === "m.facebook.com") &&
+      (/^\/(?:[^/]+\/)?videos\/\d+\/?$/.test(url.pathname) ||
+        (url.pathname.replace(/\/$/, "") === "/watch" && /^\d+$/.test(url.searchParams.get("v") ?? "")))) {
+    const embed = new URL("https://www.facebook.com/plugins/video.php");
+    embed.searchParams.set("href", sourceUrl);
+    embed.searchParams.set("show_text", "false");
+    return { sourceUrl, embedUrl: embed.toString() };
+  }
+  return { sourceUrl, embedUrl: null };
 }
 
 export function resetLandingPageSection(

@@ -1,14 +1,15 @@
 "use client";
-import { BookOpenText, CalendarDays, Clock3, Cross, Headphones, ArrowUpRight, MapPin } from "lucide-react";
+import { BookOpenText, CalendarDays, Clock3, Cross, ArrowUpRight, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import { getAnnouncementCategoryLabel } from "@/lib/announcements";
 import { parseRegistrationFields } from "@/lib/registration";
-import { getLandingPageFontFamily, getLandingPageTypographyStyleVariables, getYouTubeVideoEmbedUrl, landingPageContactKeys, type LandingPageBackgroundStyleVariables, type LandingPageSectionKey, type LandingPageTypographyStyleVariables, type LandingPageContent } from "@/lib/landing-page";
+import { getLandingPageFontFamily, getLandingPageTypographyStyleVariables, getLivestreamVideoUrls, landingPageContactKeys, type LandingPageBackgroundStyleVariables, type LandingPageSectionKey, type LandingPageTypographyStyleVariables, type LandingPageContent } from "@/lib/landing-page";
 import type { getLandingPageData } from "@/lib/landing-page-data";
 import { ContactDetails } from "@/components/public/contact-details";
+import { LivestreamSlider } from "@/components/public/livestream-slider";
 import { RegistrationForm } from "@/components/public/registration-form";
 import { AnnouncementViewer } from "@/components/public/announcement-viewer";
 
@@ -56,6 +57,9 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
       "data-section-font-size": appearance.fontSizeScale === 100 ? undefined : "true",
     };
   };
+  const sectionContentStyle = (section: LandingPageSectionKey): CSSProperties => ({
+    paddingBlock: landingPage.sectionBackgrounds[section].paddingY ?? undefined,
+  });
   const heroImageUrl = imageUrl("hero", landingPage.hero.image.path);
   const welcomeImageUrl = imageUrl("welcome", landingPage.welcome.image.path);
   const hasHero =
@@ -72,8 +76,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
   const hasSchedule =
     landingPage.visibility.schedule && landingPage.schedule.rows.length > 0;
   const hasLivestream =
-    landingPage.visibility.livestream && Boolean(landingPage.livestream.url);
-  const livestreamEmbedUrl = getYouTubeVideoEmbedUrl(landingPage.livestream.url);
+    landingPage.visibility.livestream && landingPage.livestream.itemsToShow > 0 && landingPage.livestream.items.some((item) => getLivestreamVideoUrls(item.url));
   const hasAnnouncements =
     landingPage.visibility.announcements && publicAnnouncements.length > 0;
   const hasEvents = landingPage.visibility.events && events.length > 0;
@@ -102,7 +105,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_15%,rgba(147,197,190,0.2),transparent_38%),linear-gradient(125deg,transparent_45%,rgba(10,31,38,0.32))]" />
         <div
           className={`mx-auto grid max-w-7xl items-center gap-14 px-6 py-24 sm:px-10 lg:px-12 lg:py-32 ${heroImageUrl ? "lg:grid-cols-[1.15fr_0.85fr]" : ""}`}
-          style={{ minHeight: landingPage.sectionBackgrounds.hero.minHeight || undefined }}
+          style={{ minHeight: landingPage.sectionBackgrounds.hero.minHeight || undefined, ...sectionContentStyle("hero") }}
         >
           <div className="max-w-2xl">
             <h1 className="text-5xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
@@ -158,7 +161,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           id="welcome"
           style={{ order: landingPage.sectionOrder.indexOf("welcome"), ...sectionBackgroundStyle("welcome") }}
         >
-          <div className={`mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:px-10 lg:items-center lg:px-12 ${welcomeImageUrl ? "lg:grid-cols-2" : ""}`}>
+          <div className={`mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:px-10 lg:items-center lg:px-12 ${welcomeImageUrl ? "lg:grid-cols-2" : ""}`} style={sectionContentStyle("welcome")}>
             <div>
               <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="welcome-heading">
                 Welcome
@@ -195,7 +198,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           id="schedules"
           style={{ order: landingPage.sectionOrder.indexOf("schedule"), ...sectionBackgroundStyle("schedule") }}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("schedule")}>
             <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="worship-schedule-heading">
               Worship schedule
             </h2>
@@ -222,7 +225,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
 
       {hasLivestream && (
         <section
-          aria-labelledby="livestream-heading"
+          aria-label="Livestreams and videos"
           className="w-full"
           data-section-background={landingPage.sectionBackgrounds.livestream.image.path ? "true" : undefined}
           data-section-custom-text={landingPage.sectionBackgrounds.livestream.textColor ? "true" : undefined}
@@ -230,43 +233,8 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           id="livestream"
           style={{ order: landingPage.sectionOrder.indexOf("livestream"), ...sectionBackgroundStyle("livestream") }}
         >
-          <div className="mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 lg:px-12">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-border bg-transparent p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/8 text-brand">
-                    <Headphones aria-hidden="true" className="size-5" />
-                  </span>
-                  <h2 className="text-lg font-semibold tracking-tight" id="livestream-heading">
-                    {landingPage.livestream.label || "YouTube livestream"}
-                  </h2>
-                </div>
-                {!livestreamEmbedUrl && (
-                  <a
-                    className="inline-flex min-h-11 items-center gap-2 self-start rounded-full bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand sm:self-auto"
-                    href={landingPage.livestream.url}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    Watch on YouTube
-                    <ArrowUpRight aria-hidden="true" className="size-4" />
-                  </a>
-                )}
-              </div>
-              {livestreamEmbedUrl && (
-                <div className="mx-auto aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-black">
-                  <iframe
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    className="size-full"
-                    loading="lazy"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    src={livestreamEmbedUrl}
-                    title={landingPage.livestream.label || "YouTube livestream"}
-                  />
-                </div>
-              )}
-            </div>
+          <div className="mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 lg:px-12" style={sectionContentStyle("livestream")}>
+            <LivestreamSlider settings={landingPage.livestream} />
           </div>
         </section>
       )}
@@ -280,7 +248,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
         id="announcements"
         style={{ order: landingPage.sectionOrder.indexOf("announcements"), ...sectionBackgroundStyle("announcements") }}
       >
-        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("announcements")}>
           <div className="max-w-2xl">
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
@@ -389,7 +357,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
         id="events"
         style={{ order: landingPage.sectionOrder.indexOf("events"), ...sectionBackgroundStyle("events") }}
       >
-        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("events")}>
           <div className="max-w-2xl">
           <h2
             className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
@@ -476,7 +444,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           id="devotionals"
           style={{ order: landingPage.sectionOrder.indexOf("devotionals"), ...sectionBackgroundStyle("devotionals") }}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("devotionals")}>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="devotionals-heading">
@@ -534,7 +502,7 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
           id="contact"
           style={{ order: landingPage.sectionOrder.indexOf("contact"), ...sectionBackgroundStyle("contact") }}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12">
+          <div className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 lg:px-12" style={sectionContentStyle("contact")}>
           <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="contact-heading">
             Contact and location
           </h2>
