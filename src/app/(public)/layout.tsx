@@ -26,10 +26,7 @@ export default async function PublicLayout({
         <PublicStatusAlert />
       </Suspense>
       {children}
-      <PublicFooter
-        footer={landingPage.footer}
-        contact={landingPage.contact}
-      />
+      <PublicFooter footer={landingPage.footer} />
     </>
   );
 }

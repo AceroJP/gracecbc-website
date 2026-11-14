@@ -11,6 +11,14 @@ export function formatDevotionalDate(value: string) {
   }).format(new Date(value));
 }
 
+export function formatDevotionalCommentDateTime(value: string) {
+  return `${new Intl.DateTimeFormat("en", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Asia/Manila",
+  }).format(new Date(value))} (Philippine time)`;
+}
+
 export function getDevotionalExcerpt(value: string, length = 180) {
   const plainText = value.replace(/\s+/g, " ").trim();
   return plainText.length > length

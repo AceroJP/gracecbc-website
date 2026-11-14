@@ -1,4 +1,3 @@
-import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import {
   getLandingPageFontFamily,
   getLandingPageTypographyStyleVariables,
@@ -7,10 +6,8 @@ import {
 
 export function PublicFooter({
   footer,
-  contact,
 }: {
   footer: LandingPageContent["footer"];
-  contact: LandingPageContent["contact"];
 }) {
   return (
     <footer className="bg-brand text-white">
@@ -39,44 +36,6 @@ export function PublicFooter({
             <p className="mt-2 text-sm leading-6" style={{ color: footer.textColor || undefined }}>
               {footer.text}
             </p>
-          )}
-          {(contact.address ||
-            contact.phone ||
-            contact.email ||
-            contact.facebookUrl ||
-            contact.mapUrl) && (
-            <div className="mt-2 flex max-w-xl flex-wrap gap-x-5 gap-y-2 text-sm leading-6 text-white/65">
-              {contact.address && (
-                <span className="inline-flex items-start gap-2">
-                  <MapPin aria-hidden="true" className="mt-1 size-4 shrink-0" />
-                  {contact.address}
-                </span>
-              )}
-              {contact.phone && (
-                <a className="inline-flex min-h-8 items-center gap-2 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2" href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>
-                  <Phone aria-hidden="true" className="size-4 shrink-0" />
-                  {contact.phone}
-                </a>
-              )}
-              {contact.email && (
-                <a className="inline-flex min-h-8 items-center gap-2 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2" href={`mailto:${contact.email}`}>
-                  <Mail aria-hidden="true" className="size-4 shrink-0" />
-                  {contact.email}
-                </a>
-              )}
-              {contact.facebookUrl && (
-                <a className="inline-flex min-h-8 items-center gap-2 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2" href={contact.facebookUrl} rel="noopener noreferrer" target="_blank">
-                  <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
-                  Facebook
-                </a>
-              )}
-              {contact.mapUrl && (
-                <a className="inline-flex min-h-8 items-center gap-2 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2" href={contact.mapUrl} rel="noopener noreferrer" target="_blank">
-                  <MapPin aria-hidden="true" className="size-4 shrink-0" />
-                  Map
-                </a>
-              )}
-            </div>
           )}
         </div>
       </div>
