@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ContactDetails } from "@/components/public/contact-details";
 import {
   Field,
   FieldDescription,
@@ -26,6 +27,7 @@ import {
   getLandingPageFontFamily,
   getLandingPageTypographyStyleVariables,
   getYouTubeVideoEmbedUrl,
+  landingPageContactKeys,
   landingPageTextAlignments,
   landingPageThemeFonts,
   type LandingPageBackgroundStyleVariables,
@@ -33,6 +35,7 @@ import {
   parseLandingPageContent,
   resetLandingPageSection,
   type LandingPageContent,
+  type LandingPageContactKey,
   type LandingPageNavigationKey,
   type LandingPageSectionKey,
   type LandingPageTextAlignment,
@@ -63,6 +66,7 @@ type ImageSlot =
   | "hero"
   | "welcome"
   | "header-logo"
+  | `contact:${LandingPageContactKey}`
   | `background:${LandingPageSectionKey}`;
 type BuilderPanelKey = LandingPageSectionKey | "footer" | "header";
 type ScheduleRow = LandingPageContent["schedule"]["rows"][number];
@@ -83,6 +87,7 @@ function isActionError(result: ActionResponse): result is Extract<ActionResponse
 function imageFieldPath(slot: ImageSlot) {
   if (slot === "hero" || slot === "welcome") return `${slot}.image`;
   if (slot === "header-logo") return "header.logo";
+  if (slot.startsWith("contact:")) return `contact.appearance.${slot.slice("contact:".length)}.image`;
   return `sectionBackgrounds.${slot.slice("background:".length)}.image`;
 }
 
@@ -402,6 +407,13 @@ export function LandingPageBuilder({
       if (slot === "header-logo") {
         return { ...current, header: { ...current.header, logo: { ...current.header.logo, alt } } };
       }
+      if (slot.startsWith("contact:")) {
+        const field = slot.slice("contact:".length) as LandingPageContactKey;
+        return { ...current, contact: { ...current.contact, appearance: {
+          ...current.contact.appearance,
+          [field]: { ...current.contact.appearance[field], image: { ...current.contact.appearance[field].image, alt } },
+        } } };
+      }
       const section = slot.slice("background:".length) as LandingPageSectionKey;
       return {
         ...current,
@@ -419,6 +431,7 @@ export function LandingPageBuilder({
   function imageForSlot(slot: ImageSlot) {
     if (slot === "hero" || slot === "welcome") return content[slot].image;
     if (slot === "header-logo") return content.header.logo;
+    if (slot.startsWith("contact:")) return content.contact.appearance[slot.slice("contact:".length) as LandingPageContactKey].image;
     const section = slot.slice("background:".length) as LandingPageSectionKey;
     return content.sectionBackgrounds[section].image;
   }
@@ -437,6 +450,12 @@ export function LandingPageBuilder({
     setUploadedUrls((current) => ({ ...current, [`background:${section}`]: null }));
     if (section === "hero" || section === "welcome") {
       setUploadedUrls((current) => ({ ...current, [section]: null }));
+    }
+    if (section === "contact") {
+      setUploadedUrls((current) => ({
+        ...current,
+        ...Object.fromEntries(landingPageContactKeys.map((field) => [`contact:${field}`, null])),
+      }));
     }
     clearFieldErrors();
   }
@@ -589,6 +608,12 @@ export function LandingPageBuilder({
           ...current,
           header: { ...current.header, logo: { path: result.path, alt: result.alt } },
         }));
+      } else if (slot.startsWith("contact:")) {
+        const field = slot.slice("contact:".length) as LandingPageContactKey;
+        setContent((current) => ({ ...current, contact: { ...current.contact, appearance: {
+          ...current.contact.appearance,
+          [field]: { ...current.contact.appearance[field], image: { path: result.path, alt: result.alt } },
+        } } }));
       } else {
         const section = slot.slice("background:".length) as LandingPageSectionKey;
         setContent((current) => ({
@@ -645,6 +670,12 @@ export function LandingPageBuilder({
         ...current,
         header: { ...current.header, logo: { path: null, alt: "" } },
       }));
+    } else if (slot.startsWith("contact:")) {
+      const field = slot.slice("contact:".length) as LandingPageContactKey;
+      setContent((current) => ({ ...current, contact: { ...current.contact, appearance: {
+        ...current.contact.appearance,
+        [field]: { ...current.contact.appearance[field], image: { path: null, alt: "" } },
+      } } }));
     } else {
       const section = slot.slice("background:".length) as LandingPageSectionKey;
       setContent((current) => ({
@@ -681,10 +712,10 @@ export function LandingPageBuilder({
         {image.path ? (
           <div className="flex flex-wrap items-center gap-4">
             {uploadedUrls[slot] && (
-              <div className="relative aspect-video w-48 overflow-hidden rounded-xl border border-border">
+              <div className={slot.startsWith("contact:") ? "relative size-20 overflow-hidden rounded-xl border border-border" : "relative aspect-video w-48 overflow-hidden rounded-xl border border-border"}>
                 <Image
                   alt={image.alt}
-                  className="object-cover"
+                  className={slot.startsWith("contact:") ? "object-contain" : "object-cover"}
                   fill
                   sizes="192px"
                   src={uploadedUrls[slot]}
@@ -1620,7 +1651,10 @@ export function LandingPageBuilder({
                 )}
 
                 {section === "contact" && (
-                  <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                  <FieldGroup>
+                    <FieldDescription>
+                      Choose a text color and optional custom icon for each item. Clear a color to use the section text color. Use contrasting colors for readability.
+                    </FieldDescription>
                     {([
                       ["address", "Address"],
                       ["phone", "Phone"],
@@ -1628,21 +1662,54 @@ export function LandingPageBuilder({
                       ["facebookUrl", "Facebook link"],
                       ["mapUrl", "Map link"],
                     ] as const).map(([field, label]) => (
-                      <Field key={field}>
-                        <FieldLabel htmlFor={`contact-${field}`}>{label}</FieldLabel>
-                        <Input
-                          aria-invalid={Boolean(fieldErrors[`contact.${field}`])}
-                          id={`contact-${field}`}
-                          maxLength={field === "address" ? 500 : 254}
-                          onChange={(event) => setContent((current) => ({
-                            ...current,
-                            contact: { ...current.contact, [field]: event.target.value },
-                          }))}
-                          type={field === "email" ? "email" : field.endsWith("Url") ? "url" : "text"}
-                          value={content.contact[field]}
-                        />
-                        <FieldMessages messages={fieldErrors[`contact.${field}`]} />
-                      </Field>
+                      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-border p-4" key={field}>
+                        <Field>
+                          <FieldLabel htmlFor={`contact-${field}`}>{label}</FieldLabel>
+                          <Input
+                            aria-invalid={Boolean(fieldErrors[`contact.${field}`])}
+                            id={`contact-${field}`}
+                            maxLength={field === "address" ? 500 : field === "phone" ? 50 : field.endsWith("Url") ? 2048 : 254}
+                            onChange={(event) => setContent((current) => ({
+                              ...current,
+                              contact: { ...current.contact, [field]: event.target.value },
+                            }))}
+                            type={field === "email" ? "email" : field.endsWith("Url") ? "url" : "text"}
+                            value={content.contact[field]}
+                          />
+                          <FieldMessages messages={fieldErrors[`contact.${field}`]} />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={`contact-${field}-color`}>{label} text color</FieldLabel>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Input
+                              className="h-11 w-16 p-1"
+                              id={`contact-${field}-color`}
+                              onChange={(event) => setContent((current) => ({
+                                ...current, contact: { ...current.contact, appearance: {
+                                  ...current.contact.appearance,
+                                  [field]: { ...current.contact.appearance[field], textColor: event.target.value },
+                                } },
+                              }))}
+                              type="color"
+                              value={content.contact.appearance[field].textColor || content.sectionBackgrounds.contact.textColor || "#000000"}
+                            />
+                            <span className="text-sm text-muted-foreground">{content.contact.appearance[field].textColor || "Using section text color"}</span>
+                            {content.contact.appearance[field].textColor && (
+                              <Button onClick={() => setContent((current) => ({
+                                ...current, contact: { ...current.contact, appearance: {
+                                  ...current.contact.appearance,
+                                  [field]: { ...current.contact.appearance[field], textColor: "" },
+                                } },
+                              }))} size="sm" type="button" variant="outline">Clear color</Button>
+                            )}
+                          </div>
+                          <FieldMessages messages={fieldErrors[`contact.appearance.${field}.textColor`]} />
+                        </Field>
+                        <details>
+                          <summary className="cursor-pointer text-sm font-medium">Custom {label.toLowerCase()} icon (optional)</summary>
+                          <div className="mt-3">{imageFields(`contact:${field}`, "128 x 128 px", `${label} icon`)}</div>
+                        </details>
+                      </div>
                     ))}
                   </FieldGroup>
                 )}
@@ -2011,11 +2078,9 @@ export function LandingPageBuilder({
                   content.contact.mapUrl
                 )) {
                   return (
-                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} key={section} style={previewBackgroundStyle(section)}>
+                    <section className="rounded-xl border border-border p-4" data-section-background={content.sectionBackgrounds[section].image.path ? "true" : undefined} data-section-custom-text={content.sectionBackgrounds[section].textColor ? "true" : undefined} {...sectionTypographyAttributes(section)} key={section} style={previewBackgroundStyle(section)}>
                       <p className="font-semibold">Contact and location</p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {[content.contact.address, content.contact.phone, content.contact.email].filter(Boolean).join(" · ")}
-                      </p>
+                      <ContactDetails contact={content.contact} imageUrls={uploadedUrls} sectionTextColor={content.sectionBackgrounds.contact.textColor} />
                     </section>
                   );
                 }

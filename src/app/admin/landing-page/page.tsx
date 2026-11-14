@@ -4,6 +4,7 @@ import { LandingPageBuilder } from "@/components/admin/landing-page-builder";
 import { requireAdminUser } from "@/lib/auth/server";
 import {
   getDefaultLandingPageContent,
+  landingPageContactKeys,
   landingPageSectionKeys,
   parseLandingPageContent,
 } from "@/lib/landing-page";
@@ -79,6 +80,12 @@ export default async function LandingPageBuilderPage() {
       landingPageSectionKeys.map((section) => [
         `background:${section}`,
         imageUrl(content.sectionBackgrounds[section].image.path),
+      ]),
+    ),
+    ...Object.fromEntries(
+      landingPageContactKeys.map((field) => [
+        `contact:${field}`,
+        imageUrl(content.contact.appearance[field].image.path),
       ]),
     ),
   });

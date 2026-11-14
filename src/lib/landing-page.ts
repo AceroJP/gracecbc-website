@@ -99,6 +99,9 @@ export const landingPageNavigationKeys = [
 
 export type LandingPageNavigationKey = (typeof landingPageNavigationKeys)[number];
 
+export const landingPageContactKeys = ["address", "phone", "email", "mapUrl", "facebookUrl"] as const;
+export type LandingPageContactKey = (typeof landingPageContactKeys)[number];
+
 const plainText = z.string().transform((value) =>
   value.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim(),
 );
@@ -136,6 +139,18 @@ const imageSchema = z.object({
 });
 
 const defaultImage = { path: null, alt: "" };
+const defaultContactAppearance = { textColor: "", image: defaultImage };
+const contactAppearanceSchema = z.object({
+  textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
+  image: imageSchema.default(defaultImage),
+});
+const defaultContactAppearances = {
+  address: defaultContactAppearance,
+  phone: defaultContactAppearance,
+  email: defaultContactAppearance,
+  mapUrl: defaultContactAppearance,
+  facebookUrl: defaultContactAppearance,
+};
 const defaultBackground = {
   image: defaultImage,
   color: "",
@@ -278,6 +293,13 @@ const builderContentSchema = z.object({
     email: z.union([z.literal(""), z.string().trim().email().max(254)]),
     facebookUrl: emptyOrWebUrl,
     mapUrl: emptyOrWebUrl,
+    appearance: z.object({
+      address: contactAppearanceSchema.default(defaultContactAppearance),
+      phone: contactAppearanceSchema.default(defaultContactAppearance),
+      email: contactAppearanceSchema.default(defaultContactAppearance),
+      mapUrl: contactAppearanceSchema.default(defaultContactAppearance),
+      facebookUrl: contactAppearanceSchema.default(defaultContactAppearance),
+    }).default(defaultContactAppearances),
   }),
   devotionals: z.object({
     count: z.number().int().min(1).max(12),
@@ -377,6 +399,7 @@ const defaultLandingPageContent: LandingPageContent = {
     email: "",
     facebookUrl: "",
     mapUrl: "",
+    appearance: defaultContactAppearances,
   },
   devotionals: { count: 3 },
   announcements: {

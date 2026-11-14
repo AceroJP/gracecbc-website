@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminUser } from "@/lib/auth/server";
 import {
   getDefaultLandingPageContent,
+  landingPageContactKeys,
   landingPageSectionKeys,
   parseLandingPageContent,
 } from "@/lib/landing-page";
@@ -174,6 +175,12 @@ export async function uploadLandingPageImageAction(
             section.slice("background:".length) as (typeof landingPageSectionKeys)[number],
           )
         ? section
+        : typeof section === "string" &&
+            section.startsWith("contact:") &&
+            landingPageContactKeys.includes(
+              section.slice("contact:".length) as (typeof landingPageContactKeys)[number],
+            )
+          ? section
         : null;
 
   if (!(file instanceof File) || file.size === 0) {

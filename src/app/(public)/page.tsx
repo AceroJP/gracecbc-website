@@ -5,9 +5,7 @@ import {
   Cross,
   Headphones,
   ArrowUpRight,
-  Mail,
   MapPin,
-  Phone,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -25,12 +23,14 @@ import {
   getLandingPageFontFamily,
   getLandingPageTypographyStyleVariables,
   getYouTubeVideoEmbedUrl,
+  landingPageContactKeys,
   type LandingPageBackgroundStyleVariables,
   type LandingPageSectionKey,
   type LandingPageTypographyStyleVariables,
 } from "@/lib/landing-page";
 import { createClient } from "@/lib/supabase/server";
 import { getPublishedLandingPage } from "@/lib/landing-page-server";
+import { ContactDetails } from "@/components/public/contact-details";
 import { RegistrationForm } from "@/components/public/registration-form";
 import {
   AnnouncementViewer,
@@ -643,40 +643,14 @@ export default async function Home({ searchParams }: HomeProps) {
           <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" id="contact-heading">
             Contact and location
           </h2>
-          <div className="mt-6 flex flex-col gap-4 text-sm leading-6 text-muted-foreground">
-            {landingPage.contact.address && (
-              <p className="inline-flex items-start gap-2">
-                <MapPin aria-hidden="true" className="mt-1 size-4 shrink-0 text-brand" />
-                <span>{landingPage.contact.address}</span>
-              </p>
-            )}
-            {landingPage.contact.phone && (
-              <a className="inline-flex min-h-9 items-center gap-2 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2" href={`tel:${landingPage.contact.phone.replace(/[^\d+]/g, "")}`}>
-                <Phone aria-hidden="true" className="size-4 shrink-0 text-brand" />
-                {landingPage.contact.phone}
-              </a>
-            )}
-            {landingPage.contact.email && (
-              <a className="inline-flex min-h-9 items-center gap-2 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2" href={`mailto:${landingPage.contact.email}`}>
-                <Mail aria-hidden="true" className="size-4 shrink-0 text-brand" />
-                {landingPage.contact.email}
-              </a>
-            )}
-            <div className="flex flex-wrap gap-4">
-              {landingPage.contact.mapUrl && (
-                <a className="inline-flex min-h-9 items-center gap-2 font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2" href={landingPage.contact.mapUrl} rel="noopener noreferrer" target="_blank">
-                  <MapPin aria-hidden="true" className="size-4 shrink-0" />
-                  Map
-                </a>
-              )}
-              {landingPage.contact.facebookUrl && (
-                <a className="inline-flex min-h-9 items-center gap-2 font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2" href={landingPage.contact.facebookUrl} rel="noopener noreferrer" target="_blank">
-                  <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />
-                  Facebook
-                </a>
-              )}
-            </div>
-          </div>
+          <ContactDetails
+            contact={landingPage.contact}
+            imageUrls={Object.fromEntries(landingPageContactKeys.map((field) => [
+              `contact:${field}`,
+              imageUrl(landingPage.contact.appearance[field].image.path),
+            ]))}
+            sectionTextColor={landingPage.sectionBackgrounds.contact.textColor}
+          />
           </div>
         </section>
       )}
