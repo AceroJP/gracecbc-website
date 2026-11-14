@@ -2,6 +2,7 @@
 import { BookOpenText, CalendarDays, Clock3, Cross, ArrowUpRight, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "cn";
 import type { CSSProperties } from "react";
 import { formatEventDateRange, formatEventTime } from "@/lib/events";
 import { getAnnouncementCategoryLabel } from "@/lib/announcements";
@@ -26,6 +27,15 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
     params.show === "announcements"
       ? sortedAnnouncements
       : sortedAnnouncements.slice(0, landingPage.announcements.count);
+  const announcementCardSize = (id: string) => {
+    const individual = landingPage.announcements.individualCardSizes[id];
+    return {
+      width: individual?.width ?? landingPage.announcements.cardSize.width,
+      height: individual?.height ?? landingPage.announcements.cardSize.height,
+    };
+  };
+  const customAnnouncementWidth = visibleAnnouncements.some((announcement) => announcementCardSize(announcement.id).width !== null);
+  const customAnnouncementHeight = visibleAnnouncements.some((announcement) => announcementCardSize(announcement.id).height !== null);
   const visibleEvents =
     params.show === "events"
       ? events
@@ -278,14 +288,16 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
             </p>
           )}
         </div>
-          <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] items-stretch gap-6">
-            {visibleAnnouncements.map((announcement) => (
+          <div className={cn("mt-8 gap-6", customAnnouncementWidth ? "flex flex-wrap items-start" : "grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))]", !customAnnouncementWidth && (customAnnouncementHeight ? "items-start" : "items-stretch"))}>
+            {visibleAnnouncements.map((announcement) => {
+              const size = announcementCardSize(announcement.id);
+              return (
+              <div className="min-w-0" data-announcement-card key={announcement.id} style={customAnnouncementWidth ? { flex: size.width === null ? "1 1 280px" : `0 1 ${size.width}px`, maxWidth: "100%" } : undefined}>
               <AnnouncementViewer
                 announcement={announcement}
-                key={announcement.id}
               >
-                <article className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-[3px] group-hover/card:shadow-[0_10px_24px_rgba(0,0,0,0.1)] motion-reduce:transition-none motion-reduce:group-hover/card:translate-y-0">
-                  <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-brand/10">
+                <article className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-[3px] group-hover/card:shadow-[0_10px_24px_rgba(0,0,0,0.1)] motion-reduce:transition-none motion-reduce:group-hover/card:translate-y-0" style={size.height === null ? undefined : { height: size.height, minHeight: "min-content" }}>
+                  <div className={cn("relative w-full overflow-hidden bg-brand/10", size.height === null ? "aspect-video shrink-0" : "min-h-12 flex-1")}>
                     {(announcement.background_url ||
                       announcement.slide_urls[0]) ? (
                       <>
@@ -335,14 +347,14 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-1 flex-col p-4">
+                  <div className={cn("flex flex-col p-4", size.height === null ? "flex-1" : "shrink-0")}>
                     <p className="text-xs font-medium text-brand">
                       {announcement.displayDate}
                     </p>
-                    <h3 className="mt-2 min-h-14 line-clamp-2 text-lg font-bold leading-7 tracking-tight">
+                    <h3 className={cn("mt-2 line-clamp-2 text-lg font-bold leading-7 tracking-tight", size.height === null && "min-h-14")}>
                       {announcement.title}
                     </h3>
-                    <p className="mt-2 min-h-12 line-clamp-2 whitespace-pre-line text-[15px] leading-6 text-muted-foreground">
+                    <p className={cn("mt-2 line-clamp-2 whitespace-pre-line text-[15px] leading-6 text-muted-foreground", size.height === null && "min-h-12")}>
                       {announcement.body}
                     </p>
                     <p className="mt-auto pt-2 text-sm font-medium text-brand">
@@ -351,7 +363,8 @@ export function LandingPageView({ landingPage, imageUrls, data, show }: Props) {
                   </div>
                 </article>
               </AnnouncementViewer>
-            ))}
+              </div>
+            ); })}
           </div>
         {params.show !== "announcements" &&
           publicAnnouncements.length > landingPage.announcements.count && (

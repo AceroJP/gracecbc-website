@@ -59,6 +59,7 @@ import {
   updateAnnouncementAction,
 } from "@/app/admin/announcements/actions";
 import { createClient } from "@/lib/supabase/client";
+import { uploadLargeAnnouncementFile } from "@/lib/announcement-upload";
 import { showLoadingAlert } from "@/lib/sweet-alert";
 import type { Database } from "@/types/database.types";
 
@@ -446,7 +447,7 @@ function AnnouncementForm({
             type="file"
           />
           <FieldDescription>
-            Choose a JPG, PNG, or WebP image up to 5 MB. A dark overlay is added
+            Choose a JPG, PNG, or WebP image up to {announcementImageMaxBytes / (1024 * 1024)} MB. A dark overlay is added
             so the announcement text remains readable.
           </FieldDescription>
           {announcement?.background_name && !removeBackground && !backgroundFile && (
@@ -643,7 +644,14 @@ export function AnnouncementManager({
           Swal.update({
             text: `Uploading file ${completedUploads + 1} of ${totalUploads}: ${file.name}`,
           });
-          const { error } = await supabase.storage
+          uploadedPaths.push(upload.path);
+          const { error } = file.size > 6 * 1024 * 1024
+            ? await uploadLargeAnnouncementFile(file, upload.path, upload.token, (percent) => {
+                Swal.update({
+                  text: `Uploading file ${completedUploads + 1} of ${totalUploads}: ${file.name} (${percent}%)`,
+                });
+              })
+            : await supabase.storage
             .from(announcementBucket)
             .uploadToSignedUrl(upload.path, upload.token, file, {
               cacheControl: "3600",
@@ -654,7 +662,6 @@ export function AnnouncementManager({
             throw new Error("We couldn’t upload the presentation. Please try again.");
           }
           uploaded.push({ path: upload.path, name: upload.name });
-          uploadedPaths.push(upload.path);
           completedUploads += 1;
         }
         return uploaded;
@@ -1069,9 +1076,9 @@ function AnnouncementList({
                       </span>
                     )}
                     <span className="min-w-0">
-                      <span className="block">{announcement.title}</span>
+                      <span className="block [overflow-wrap:anywhere]">{announcement.title}</span>
                       {announcement.body && (
-                        <span className="mt-1 line-clamp-2 block whitespace-pre-line text-xs leading-5 text-muted-foreground">
+                        <span className="mt-1 line-clamp-2 block whitespace-pre-line text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
                           {announcement.body}
                         </span>
                       )}
@@ -1079,19 +1086,21 @@ function AnnouncementList({
                   </div>
                 </th>
                 <td className="max-w-56 px-5 py-4 text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="flex min-w-0 items-start gap-1.5">
                     <FileText aria-hidden="true" className="size-4 shrink-0" />
-                    {announcement.pdf_path
-                      ? announcement.pdf_name
-                      : announcement.slide_paths.length > 0
-                        ? `${announcement.slide_paths.length} image slides`
-                        : "No presentation"}
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      {announcement.pdf_path
+                        ? announcement.pdf_name
+                        : announcement.slide_paths.length > 0
+                          ? `${announcement.slide_paths.length} image slides`
+                          : "No presentation"}
+                    </span>
                   </span>
                   {announcement.background_name && (
                     <span className="mt-1 block text-xs">Card background set</span>
                   )}
                 </td>
-                <td className="max-w-48 px-5 py-4 text-muted-foreground">
+                <td className="max-w-48 px-5 py-4 text-muted-foreground [overflow-wrap:anywhere]">
                   {announcement.categories.length > 0
                     ? announcement.categories
                         .map(getAnnouncementCategoryLabel)

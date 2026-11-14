@@ -1,7 +1,7 @@
 export const announcementBucket = "church-announcements";
-export const announcementPdfMaxBytes = 20 * 1024 * 1024;
-export const announcementPowerPointMaxBytes = 20 * 1024 * 1024;
-export const announcementImageMaxBytes = 5 * 1024 * 1024;
+export const announcementPdfMaxBytes = 100 * 1024 * 1024;
+export const announcementPowerPointMaxBytes = 100 * 1024 * 1024;
+export const announcementImageMaxBytes = 100 * 1024 * 1024;
 export const announcementMaxImages = 20;
 export const announcementPdfMimeType = "application/pdf";
 export const announcementPowerPointMimeTypes = {

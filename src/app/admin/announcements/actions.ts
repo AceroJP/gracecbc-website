@@ -173,7 +173,7 @@ export async function beginAnnouncementUploadsAction(
   ) {
     return {
       status: "error" as const,
-      message: `PDF files must be under ${announcementPdfMaxBytes / (1024 * 1024)} MB and PowerPoint files under ${announcementPowerPointMaxBytes / (1024 * 1024)} MB. Each slide image must be PNG, JPG, or WebP under ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
+      message: `PDF files must be at most ${announcementPdfMaxBytes / (1024 * 1024)} MB and PowerPoint files at most ${announcementPowerPointMaxBytes / (1024 * 1024)} MB. Each slide image must be PNG, JPG, or WebP at most ${announcementImageMaxBytes / (1024 * 1024)} MB.`,
     };
   }
 
@@ -322,7 +322,7 @@ export async function convertAnnouncementPowerPointAction(
     while (job.status === "waiting" || job.status === "processing") {
       if (Date.now() >= deadline) {
         throw new Error(
-          "PowerPoint conversion is taking longer than expected. Please try again.",
+          "PowerPoint conversion is taking longer than expected. Please try again or upload a PDF instead.",
         );
       }
 

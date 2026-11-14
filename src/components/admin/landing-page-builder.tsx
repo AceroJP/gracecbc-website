@@ -30,6 +30,8 @@ import {
   landingPageThemeFonts,
   getDefaultLandingPageContent,
   defaultScheduleTextStyle,
+  defaultAnnouncementCardSize,
+  updateAnnouncementCardSize,
   updateScheduleAppearance,
   parseLandingPageContent,
   resetLandingPageSection,
@@ -228,6 +230,7 @@ export function LandingPageBuilder({
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewVersion, setPreviewVersion] = useState(0);
   const [scheduleStyleTarget, setScheduleStyleTarget] = useState("cards");
+  const [announcementSizeTarget, setAnnouncementSizeTarget] = useState("all");
   const [openSection, setOpenSection] = useState<BuilderPanelKey | null>("header");
   const sectionHeaderRefs = useRef<Partial<Record<BuilderPanelKey, HTMLButtonElement | null>>>({});
   const hasDraftChanges = useMemo(
@@ -236,6 +239,12 @@ export function LandingPageBuilder({
   );
 
   const scheduleAppearance = content.schedule.appearance;
+  const selectedAnnouncementSize = announcementSizeTarget === "all"
+    ? content.announcements.cardSize
+    : content.announcements.individualCardSizes[announcementSizeTarget] ?? defaultAnnouncementCardSize;
+  const announcementSizeFieldPath = announcementSizeTarget === "all"
+    ? "announcements.cardSize"
+    : `announcements.individualCardSizes.${announcementSizeTarget}`;
   const selectedScheduleStyle = scheduleStyleTarget.startsWith("card:")
     ? scheduleAppearance.individualCards[scheduleStyleTarget.slice(5)] ?? defaultScheduleTextStyle
     : scheduleAppearance[scheduleStyleTarget as "title" | "intro" | "cards"];
@@ -1662,6 +1671,7 @@ export function LandingPageBuilder({
                       </select>
                     </Field>
                     {section === "announcements" && (
+                      <>
                       <Field>
                         <FieldLabel htmlFor="announcements-pinned">Pin announcement to top</FieldLabel>
                         <select
@@ -1687,6 +1697,27 @@ export function LandingPageBuilder({
                           Only active announcements can be pinned.
                         </FieldDescription>
                       </Field>
+                      <Field>
+                        <FieldLabel htmlFor="announcement-card-target">Resize cards</FieldLabel>
+                        <select className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40" id="announcement-card-target" value={announcementSizeTarget} onChange={(event) => setAnnouncementSizeTarget(event.target.value)}>
+                          <option value="all">All announcement cards</option>
+                          {announcements.map((announcement) => <option key={announcement.id} value={announcement.id}>{announcement.title}</option>)}
+                        </select>
+                        <FieldDescription>Choose all cards or a specific announcement. Changing a dimension for all cards replaces individual settings for that dimension.</FieldDescription>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="announcement-card-width">Card maximum width (px)</FieldLabel>
+                        <Input aria-invalid={Boolean(fieldErrors[`${announcementSizeFieldPath}.width`])} id="announcement-card-width" type="number" min={160} max={900} placeholder="Automatic" value={selectedAnnouncementSize.width ?? ""} onChange={(event) => setContent((current) => ({ ...current, announcements: updateAnnouncementCardSize(current.announcements, announcementSizeTarget, "width", event.target.value === "" ? null : Number(event.target.value)) }))} />
+                        <FieldDescription>160-900 px. Leave blank to use {announcementSizeTarget === "all" ? "the automatic layout" : "the all-card setting"}. Cards shrink to fit small screens.</FieldDescription>
+                        <FieldMessages messages={fieldErrors[`${announcementSizeFieldPath}.width`]} />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="announcement-card-height">Card height (px)</FieldLabel>
+                        <Input aria-invalid={Boolean(fieldErrors[`${announcementSizeFieldPath}.height`])} id="announcement-card-height" type="number" min={220} max={1000} placeholder="Automatic" value={selectedAnnouncementSize.height ?? ""} onChange={(event) => setContent((current) => ({ ...current, announcements: updateAnnouncementCardSize(current.announcements, announcementSizeTarget, "height", event.target.value === "" ? null : Number(event.target.value)) }))} />
+                        <FieldDescription>220-1000 px. Leave blank to use {announcementSizeTarget === "all" ? "the automatic layout" : "the all-card setting"}. Cards grow if their text needs more room.</FieldDescription>
+                        <FieldMessages messages={fieldErrors[`${announcementSizeFieldPath}.height`]} />
+                      </Field>
+                      </>
                     )}
                   </>
                 )}

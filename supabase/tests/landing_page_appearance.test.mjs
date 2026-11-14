@@ -94,6 +94,61 @@ function publicData() {
   };
 }
 
+test("announcement card sizes preserve old settings and support individual and all-card changes", () => {
+  const content = fixture();
+  delete content.announcements.cardSize;
+  delete content.announcements.individualCardSizes;
+  let parsed = landingPage.parseLandingPageContent(content);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.announcements.cardSize.width, null);
+  assert.equal(parsed.data.announcements.cardSize.height, null);
+  const first = "00000000-0000-4000-8000-000000000001";
+  const second = "00000000-0000-4000-8000-000000000002";
+  let settings = parsed.data.announcements;
+  settings = landingPage.updateAnnouncementCardSize(settings, first, "width", 240);
+  settings = landingPage.updateAnnouncementCardSize(settings, first, "height", 300);
+  settings = landingPage.updateAnnouncementCardSize(settings, second, "width", 500);
+  settings = landingPage.updateAnnouncementCardSize(settings, "all", "height", 400);
+  assert.equal(settings.individualCardSizes[first].height, null);
+  assert.equal(settings.individualCardSizes[first].width, 240);
+  assert.equal(settings.individualCardSizes[second].width, 500);
+  settings = landingPage.updateAnnouncementCardSize(settings, first, "height", 260);
+  parsed.data.announcements = settings;
+  parsed = landingPage.parseLandingPageContent(JSON.parse(JSON.stringify(parsed.data)));
+  assert.equal(parsed.success, true);
+  const data = publicData();
+  data.publicAnnouncements = [{ ...data.publicAnnouncements[0], id: first, title: "First notice" }, { ...data.publicAnnouncements[0], id: second, title: "Second notice" }];
+  const html = renderToStaticMarkup(React.createElement(loadLandingPageView(), { landingPage: parsed.data, data, imageUrls: {} }));
+  const section = html.match(/<section[^>]*id="announcements"[^>]*>[\s\S]*?<\/section>/)[0];
+  assert.match(section, /flex flex-wrap items-start/);
+  assert.match(section, /flex:0 1 240px;max-width:100%/);
+  assert.match(section, /height:260px;min-height:min-content/);
+  assert.match(section, /flex:0 1 500px;max-width:100%/);
+  assert.match(section, /height:400px;min-height:min-content/);
+  assert.match(section, /First notice/);
+  assert.match(section, /Second notice/);
+  parsed.data.announcements.cardSize.width = 100;
+  assert.equal(landingPage.parseLandingPageContent(parsed.data).success, false);
+  parsed.data.announcements.cardSize.width = 300;
+  parsed.data.announcements.cardSize.height = 1001;
+  assert.equal(landingPage.parseLandingPageContent(parsed.data).success, false);
+});
+
+test("automatic announcement sizes retain the existing grid and media aspect ratio", () => {
+  const html = renderToStaticMarkup(React.createElement(loadLandingPageView(), { landingPage: fixture(), data: publicData(), imageUrls: {} }));
+  const section = html.match(/<section[^>]*id="announcements"[^>]*>[\s\S]*?<\/section>/)[0];
+  assert.match(section, /grid-cols-\[repeat\(auto-fill,minmax\(min\(100%,280px\),1fr\)\)\]/);
+  assert.match(section, /aspect-video shrink-0/);
+  assert.doesNotMatch(section, /min-height:min-content/);
+  const content = fixture();
+  content.announcements.cardSize.height = 300;
+  const resizedHtml = renderToStaticMarkup(React.createElement(loadLandingPageView(), { landingPage: content, data: publicData(), imageUrls: {} }));
+  const resizedSection = resizedHtml.match(/<section[^>]*id="announcements"[^>]*>[\s\S]*?<\/section>/)[0];
+  assert.match(resizedSection, /grid-cols-\[repeat\(auto-fill,minmax\(min\(100%,280px\),1fr\)\)\]/);
+  assert.match(resizedSection, /items-start/);
+  assert.match(resizedSection, /height:300px/);
+});
+
 test("schedule settings exclude legacy draft rows while public content uses managed schedules", () => {
   const content = fixture();
   content.schedule.rows = [{ id: "00000000-0000-4000-8000-000000000001", day: "Sunday", time: "10 AM", serviceName: "Unpublished legacy", note: "" }];

@@ -161,6 +161,12 @@ const defaultScheduleAppearance = {
   individualCards: {},
 };
 export type ScheduleTextStyle = z.infer<typeof scheduleTextStyleSchema>;
+export const defaultAnnouncementCardSize = { width: null as number | null, height: null as number | null };
+const announcementCardSizeSchema = z.object({
+  width: z.number().int().min(160).max(900).nullable().default(null),
+  height: z.number().int().min(220).max(1000).nullable().default(null),
+});
+export type AnnouncementCardSize = z.infer<typeof announcementCardSizeSchema>;
 const defaultContactAppearance = { textColor: "", image: defaultImage };
 const contactAppearanceSchema = z.object({
   textColor: z.string().regex(/^$|^#[\da-f]{6}$/i, "Enter a 6-digit hex color.").default(""),
@@ -342,6 +348,8 @@ const builderContentSchema = z.object({
     intro: text(500),
     count: z.union([z.literal(3), z.literal(6), z.literal(9)]),
     pinnedId: z.string().uuid().nullable(),
+    cardSize: announcementCardSizeSchema.default(defaultAnnouncementCardSize),
+    individualCardSizes: z.record(z.uuid(), announcementCardSizeSchema).default({}),
   }),
   events: z.object({
     title: text(120),
@@ -398,6 +406,25 @@ const builderContentSchema = z.object({
 });
 
 export type LandingPageContent = z.infer<typeof builderContentSchema>;
+
+export function updateAnnouncementCardSize(
+  settings: LandingPageContent["announcements"],
+  target: string,
+  field: keyof AnnouncementCardSize,
+  value: number | null,
+): LandingPageContent["announcements"] {
+  if (target !== "all") {
+    return { ...settings, individualCardSizes: {
+      ...settings.individualCardSizes,
+      [target]: { ...(settings.individualCardSizes[target] ?? defaultAnnouncementCardSize), [field]: value },
+    } };
+  }
+  return {
+    ...settings,
+    cardSize: { ...settings.cardSize, [field]: value },
+    individualCardSizes: Object.fromEntries(Object.entries(settings.individualCardSizes).map(([id, size]) => [id, { ...size, [field]: null }])),
+  };
+}
 
 export function updateScheduleAppearance<K extends keyof ScheduleTextStyle>(
   appearance: LandingPageContent["schedule"]["appearance"],
@@ -463,6 +490,8 @@ const defaultLandingPageContent: LandingPageContent = {
     intro: "",
     count: 3,
     pinnedId: null,
+    cardSize: defaultAnnouncementCardSize,
+    individualCardSizes: {},
   },
   events: {
     title: "Events",
