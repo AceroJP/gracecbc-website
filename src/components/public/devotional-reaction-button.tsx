@@ -1,6 +1,7 @@
 "use client";
 
 import { Heart } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ export function DevotionalReactionButton({
   devotionalId: string;
   initialCount: number;
 }) {
+  const router = useRouter();
   const visitorId = useSyncExternalStore(
     subscribeToVisitor,
     getVisitorSnapshot,
@@ -80,9 +82,23 @@ export function DevotionalReactionButton({
   const [count, setCount] = useState(initialCount);
   const [pending, startTransition] = useTransition();
 
-  function toggle() {
+  async function toggle() {
     if (!visitorId) return;
     const action = liked ? "unlike" : "like";
+    let visitorName = "";
+    if (action === "like") {
+      const response = await Swal.fire({
+        title: "Add your name",
+        text: "Please enter your name to like this devotional.",
+        input: "text",
+        inputAttributes: { maxlength: "80", autocomplete: "name" },
+        showCancelButton: true,
+        confirmButtonText: "Like",
+        inputValidator: (value) => value.trim() ? undefined : "Please enter your name.",
+      });
+      if (!response.isConfirmed) return;
+      visitorName = response.value.trim();
+    }
     void Swal.fire({
       title: liked ? "Removing your reaction" : "Saving your reaction",
       allowOutsideClick: false,
@@ -95,10 +111,12 @@ export function DevotionalReactionButton({
           action,
           devotionalId,
           visitorId,
+          visitorName,
         });
         Swal.close();
         if (result.status === "success" && result.liked !== undefined && result.reactionCount !== undefined) {
           setCount(result.reactionCount);
+          router.refresh();
           if (result.liked) {
             window.localStorage.setItem(`gcbc_devotional_liked_${devotionalId}`, "1");
           } else {
@@ -138,7 +156,7 @@ export function DevotionalReactionButton({
     <Button
       aria-pressed={liked}
       disabled={!visitorId || pending}
-      onClick={toggle}
+      onClick={() => void toggle()}
       type="button"
       variant={liked ? "secondary" : "outline"}
     >

@@ -369,6 +369,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      devotional_comments: {
+        Row: {
+          id: string;
+          devotional_id: string;
+          author_name: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          devotional_id: string;
+          author_name: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          devotional_id?: string;
+          author_name?: string;
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       devotional_audit_log: {
         Row: {
           id: string;
@@ -471,6 +495,19 @@ export type Database = {
           liked: boolean;
           reaction_count: number;
         }[];
+      };
+      toggle_named_devotional_reaction: {
+        Args: {
+          p_devotional_id: string;
+          p_visitor_identifier_hash: string;
+          p_action: string;
+          p_visitor_name: string;
+        };
+        Returns: { liked: boolean; reaction_count: number }[];
+      };
+      create_devotional_comment: {
+        Args: { p_devotional_id: string; p_author_name: string; p_content: string };
+        Returns: string;
       };
     };
     Enums: Record<never, never>;

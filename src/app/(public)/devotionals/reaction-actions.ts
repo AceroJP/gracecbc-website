@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createPrivilegedClient } from "@/lib/supabase/admin";
@@ -10,7 +10,8 @@ const reactionSchema = z.object({
   devotionalId: z.uuid(),
   visitorId: z.string().regex(/^[a-f0-9]{64}$/),
   action: z.enum(["like", "unlike"]),
-});
+  visitorName: z.string().trim().max(80),
+}).refine((value) => value.action !== "like" || value.visitorName.length > 0);
 
 export type ReactionState = {
   status: "success" | "error";
@@ -36,8 +37,8 @@ export async function toggleDevotionalReaction(
   const visitorHash = createHmac("sha256", secret)
     .update(parsed.data.visitorId)
     .digest("hex");
-  const requestHash = createHash("sha256")
-    .update(`${parsed.data.devotionalId}\u0000${visitorHash}\u0000${clientIp}`)
+  const requestHash = createHmac("sha256", secret)
+    .update(clientIp)
     .digest("hex");
 
   try {
@@ -64,10 +65,11 @@ export async function toggleDevotionalReaction(
       };
     }
 
-    const { data, error } = await client.rpc("toggle_devotional_reaction", {
+    const { data, error } = await client.rpc("toggle_named_devotional_reaction", {
       p_devotional_id: parsed.data.devotionalId,
       p_visitor_identifier_hash: visitorHash,
       p_action: parsed.data.action,
+      p_visitor_name: parsed.data.visitorName,
     });
     const result = data?.[0];
     if (error || !result) {

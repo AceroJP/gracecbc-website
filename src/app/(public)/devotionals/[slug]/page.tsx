@@ -5,6 +5,7 @@ import { ArrowLeft, Clock3, Heart } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createPrivilegedClient } from "@/lib/supabase/admin";
 import { DevotionalReactionButton } from "@/components/public/devotional-reaction-button";
+import { DevotionalCommentForm } from "@/components/public/devotional-comment-form";
 import { formatDevotionalDate, getReadingTime } from "@/lib/devotionals";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -28,9 +29,10 @@ export default async function DevotionalReadingPage({ params }: PageProps) {
     .maybeSingle();
   if (error) throw new Error("Unable to load devotional.", { cause: error });
   if (!devotional) notFound();
-  const [{ data: contributor }, { data: category }] = await Promise.all([
+  const [{ data: contributor }, { data: category }, { data: comments, error: commentsError }] = await Promise.all([
     privilegedClient.from("devotional_contributors").select("full_name").eq("id", devotional.contributor_id).single(),
     devotional.category_id ? supabase.from("devotional_categories").select("name").eq("id", devotional.category_id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from("devotional_comments").select("id, author_name, content, created_at").eq("devotional_id", devotional.id).order("created_at", { ascending: false }).limit(100),
   ]);
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-14 sm:px-10 lg:py-20">
@@ -64,6 +66,27 @@ export default async function DevotionalReadingPage({ params }: PageProps) {
           />
         </div>
       </article>
+      <section aria-labelledby="devotional-comments" className="mt-12 border-t border-border pt-6">
+        <h2 id="devotional-comments" className="text-xl font-semibold">Comments</h2>
+        {commentsError ? (
+          <p className="mt-4 text-sm text-muted-foreground">Comments are temporarily unavailable. Please try again later.</p>
+        ) : (
+          <>
+            <DevotionalCommentForm devotionalId={devotional.id} />
+            {comments?.length ? (
+              <ol className="mt-8 flex flex-col gap-6">
+                {[...comments].reverse().map((comment) => (
+                  <li key={comment.id} className="border-t border-border pt-4">
+                    <p className="font-medium">{comment.author_name}</p>
+                    <p className="text-sm text-muted-foreground"><time dateTime={comment.created_at}>{formatDevotionalDate(comment.created_at)}</time></p>
+                    <p className="mt-2 whitespace-pre-wrap">{comment.content}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="mt-8 text-sm text-muted-foreground">No comments yet. Be the first to share.</p>}
+          </>
+        )}
+      </section>
     </main>
   );
 }
