@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 import { announcementBucket, formatAnnouncementDate, getAnnouncementPresentationType } from "@/lib/announcements";
 import { getOptionalTurnstileSiteKey } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -103,13 +103,36 @@ export async function getLandingPageData() {
   return { events, schedules: publicSchedules, publicAnnouncements, devotionals: devotionals ?? [], devotionalCount, turnstileSiteKey, today: new Date().toISOString().slice(0, 10) };
 }
 
-export async function getLandingPageImageUrls(content: LandingPageContent) {
+export async function getLandingPageImageUrls(content: LandingPageContent): Promise<Record<string, string | null>> {
   const supabase = await createClient();
-  const imageUrl = (path: string | null) => path ? supabase.storage.from("landing-page-images").getPublicUrl(path).data.publicUrl : null;
+  const imageUrl = (path: string | null) =>
+    path
+      ? supabase.storage.from("landing-page-images").getPublicUrl(path).data.publicUrl
+      : null;
+
   return {
-    hero: imageUrl(content.hero.image.path), welcome: imageUrl(content.welcome.image.path),
+    hero: imageUrl(content.hero.image.path),
+    welcome: imageUrl(content.welcome.image.path),
     "header-logo": imageUrl(content.header.logo.path),
-    ...Object.fromEntries(landingPageSectionKeys.map((section) => [`background:${section}`, imageUrl(content.sectionBackgrounds[section].image.path)])),
-    ...Object.fromEntries(landingPageContactKeys.map((field) => [`contact:${field}`, imageUrl(content.contact.appearance[field].image.path)])),
+    "about:whoWeAre": imageUrl(content.about.whoWeAre.photo.path),
+    ...Object.fromEntries(
+      content.about.leaders.map((leader) => [
+        "about:leader:" + leader.id,
+        imageUrl(leader.photo.path),
+      ]),
+    ),
+    ...Object.fromEntries(
+      landingPageSectionKeys.map((section) => [
+        "background:" + section,
+        imageUrl(content.sectionBackgrounds[section].image.path),
+      ]),
+    ),
+    ...Object.fromEntries(
+      landingPageContactKeys.map((field) => [
+        "contact:" + field,
+        imageUrl(content.contact.appearance[field].image.path),
+      ]),
+    ),
   };
 }
+

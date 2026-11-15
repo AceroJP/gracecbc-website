@@ -83,15 +83,22 @@ export default async function LandingPageBuilderPage() {
     hero: imageUrl(content.hero.image.path),
     welcome: imageUrl(content.welcome.image.path),
     "header-logo": imageUrl(content.header.logo.path),
+    "about:whoWeAre": imageUrl(content.about.whoWeAre.photo.path),
+    ...Object.fromEntries(
+      content.about.leaders.map((leader) => [
+        "about:leader:" + leader.id,
+        imageUrl(leader.photo.path),
+      ]),
+    ),
     ...Object.fromEntries(
       landingPageSectionKeys.map((section) => [
-        `background:${section}`,
+        "background:" + section,
         imageUrl(content.sectionBackgrounds[section].image.path),
       ]),
     ),
     ...Object.fromEntries(
       landingPageContactKeys.map((field) => [
-        `contact:${field}`,
+        "contact:" + field,
         imageUrl(content.contact.appearance[field].image.path),
       ]),
     ),

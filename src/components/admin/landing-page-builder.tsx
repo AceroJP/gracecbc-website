@@ -37,7 +37,6 @@ import {
   resetLandingPageSection,
   type LandingPageContent,
   type LandingPageContactKey,
-  type LandingPageNavigationKey,
   type LandingPageSectionKey,
   type LandingPageTextAlignment,
   type LandingPageThemeFont,
@@ -69,26 +68,26 @@ type ImageSlot =
   | "hero"
   | "welcome"
   | "header-logo"
+  | "about:whoWeAre"
+  | `about:leader:${string}`
   | `contact:${LandingPageContactKey}`
   | `background:${LandingPageSectionKey}`;
-type BuilderPanelKey = LandingPageSectionKey | "footer" | "header";
+type BuilderPanelKey = LandingPageSectionKey | "footer" | "header" | "navigation" | "about";
 type ActionResponse = Awaited<ReturnType<typeof saveLandingPageDraftAction>>;
-
-const navigationTitles: Record<LandingPageNavigationKey, string> = {
-  events: "Events",
-  schedules: "Schedules",
-  livestream: "Livestream",
-  devotionals: "Devotionals",
-  contact: "Contact",
-};
 
 function isActionError(result: ActionResponse): result is Extract<ActionResponse, { status: "error" }> {
   return result.status === "error";
 }
 
-function imageFieldPath(slot: ImageSlot) {
+function imageFieldPath(content: LandingPageContent, slot: ImageSlot) {
   if (slot === "hero" || slot === "welcome") return `${slot}.image`;
   if (slot === "header-logo") return "header.logo";
+  if (slot === "about:whoWeAre") return "about.whoWeAre.photo";
+  if (slot.startsWith("about:leader:")) {
+    const id = slot.slice("about:leader:".length);
+    const index = content.about.leaders.findIndex((leader) => leader.id === id);
+    return `about.leaders.${Math.max(0, index)}.photo`;
+  }
   if (slot.startsWith("contact:")) return `contact.appearance.${slot.slice("contact:".length)}.image`;
   return `sectionBackgrounds.${slot.slice("background:".length)}.image`;
 }
@@ -370,14 +369,207 @@ export function LandingPageBuilder({
     });
   }
 
+  function addNavItem() {
+    setContent((current) => ({
+      ...current,
+      header: {
+        ...current.header,
+        navigation: {
+          ...current.header.navigation,
+          items: [
+            ...current.header.navigation.items,
+            {
+              id: crypto.randomUUID(),
+              label: "",
+              href: "/",
+              hidden: false,
+              children: [],
+            },
+          ].slice(0, 7),
+        },
+      },
+    }));
+    clearFieldErrors();
+  }
+
+  async function removeNavItem(id: string) {
+    if (
+      !(await confirmAction(
+        "Remove this navigation item?",
+        "This item will be removed from the navigation menu.",
+        "Remove item",
+      ))
+    ) {
+      return;
+    }
+    setContent((current) => ({
+      ...current,
+      header: {
+        ...current.header,
+        navigation: {
+          ...current.header.navigation,
+          items: current.header.navigation.items.filter((item) => item.id !== id),
+        },
+      },
+    }));
+    clearFieldErrors();
+  }
+
+  function moveNavItem(id: string, direction: -1 | 1) {
+    setContent((current) => {
+      const items = [...current.header.navigation.items];
+      const index = items.findIndex((item) => item.id === id);
+      if (index < 0) return current;
+      const target = index + direction;
+      if (target < 0 || target >= items.length) return current;
+      [items[index], items[target]] = [items[target], items[index]];
+      return {
+        ...current,
+        header: {
+          ...current.header,
+          navigation: { ...current.header.navigation, items },
+        },
+      };
+    });
+    clearFieldErrors();
+  }
+
+  function addNavChild(parentId: string) {
+    setContent((current) => {
+      const items = current.header.navigation.items.map((item) => {
+        if (item.id !== parentId) return item;
+        if (item.children.length >= 12) return item;
+        return {
+          ...item,
+          children: [
+            ...item.children,
+            { id: crypto.randomUUID(), label: "", href: "/about", hidden: false },
+          ],
+        };
+      });
+      return {
+        ...current,
+        header: {
+          ...current.header,
+          navigation: { ...current.header.navigation, items },
+        },
+      };
+    });
+    clearFieldErrors();
+  }
+
+  async function removeNavChild(parentId: string, childId: string) {
+    if (
+      !(await confirmAction(
+        "Remove this dropdown item?",
+        "This dropdown link will be removed.",
+        "Remove dropdown item",
+      ))
+    ) {
+      return;
+    }
+    setContent((current) => {
+      const items = current.header.navigation.items.map((item) => {
+        if (item.id !== parentId) return item;
+        return { ...item, children: item.children.filter((child) => child.id !== childId) };
+      });
+      return {
+        ...current,
+        header: { ...current.header, navigation: { ...current.header.navigation, items } },
+      };
+    });
+    clearFieldErrors();
+  }
+
+  function moveNavChild(parentId: string, childId: string, direction: -1 | 1) {
+    setContent((current) => {
+      const items = current.header.navigation.items.map((item) => {
+        if (item.id !== parentId) return item;
+        const children = [...item.children];
+        const index = children.findIndex((child) => child.id === childId);
+        if (index < 0) return item;
+        const target = index + direction;
+        if (target < 0 || target >= children.length) return item;
+        [children[index], children[target]] = [children[target], children[index]];
+        return { ...item, children };
+      });
+
+      return {
+        ...current,
+        header: { ...current.header, navigation: { ...current.header.navigation, items } },
+      };
+    });
+    clearFieldErrors();
+  }
+
+  function addLeader() {
+    setContent((current) => ({
+      ...current,
+      about: {
+        ...current.about,
+        leaders: [
+          ...current.about.leaders,
+          { id: crypto.randomUUID(), name: "", role: "", photo: { path: null, alt: "" } },
+        ],
+      },
+    }));
+    clearFieldErrors();
+  }
+
+  function moveLeader(id: string, direction: -1 | 1) {
+    setContent((current) => {
+      const leaders = [...current.about.leaders];
+      const index = leaders.findIndex((leader) => leader.id === id);
+      if (index < 0) return current;
+      const target = index + direction;
+      if (target < 0 || target >= leaders.length) return current;
+      [leaders[index], leaders[target]] = [leaders[target], leaders[index]];
+      return { ...current, about: { ...current.about, leaders } };
+    });
+    clearFieldErrors();
+  }
+
+  async function removeLeader(id: string) {
+    if (
+      !(await confirmAction(
+        "Remove this leader?",
+        "This leader will be removed from the About page.",
+        "Remove leader",
+      ))
+    ) {
+      return;
+    }
+    setContent((current) => ({
+      ...current,
+      about: {
+        ...current.about,
+        leaders: current.about.leaders.filter((leader) => leader.id !== id),
+      },
+    }));
+    setUploadedUrls((current) => ({ ...current, ["about:leader:" + id]: null }));
+    clearFieldErrors();
+  }
+
   function hasUnsavedPanelChanges(panel: BuilderPanelKey) {
     if (panel === "header") {
       return JSON.stringify(content.header) !== JSON.stringify(savedDraftContent.header);
     }
+    if (panel === "navigation") {
+      return (
+        JSON.stringify(content.header.navigation) !==
+        JSON.stringify(savedDraftContent.header.navigation)
+      );
+    }
+    if (panel === "about") {
+      return JSON.stringify(content.about) !== JSON.stringify(savedDraftContent.about);
+    }
     if (panel === "footer") {
       return JSON.stringify(content.footer) !== JSON.stringify(savedDraftContent.footer);
     }
-    return getSectionSnapshot(content, panel) !== getSectionSnapshot(savedDraftContent, panel);
+    return (
+      getSectionSnapshot(content, panel as LandingPageSectionKey) !==
+      getSectionSnapshot(savedDraftContent, panel as LandingPageSectionKey)
+    );
   }
 
   async function togglePanel(panel: BuilderPanelKey) {
@@ -385,9 +577,13 @@ export function LandingPageBuilder({
       const panelTitle =
         openSection === "header"
           ? "Navigation header"
-          : openSection === "footer"
-            ? "Footer"
-            : sectionTitles[openSection];
+          : openSection === "navigation"
+            ? "Navigation"
+            : openSection === "about"
+              ? "About page"
+              : openSection === "footer"
+                ? "Footer"
+                : sectionTitles[openSection as LandingPageSectionKey];
       const result = await Swal.fire({
         icon: "warning",
         title: "Unsaved section edits",
@@ -404,22 +600,6 @@ export function LandingPageBuilder({
     setOpenSection((current) => current === panel ? null : panel);
   }
 
-  function updateNavigationOrder(key: LandingPageNavigationKey, direction: -1 | 1) {
-    setContent((current) => {
-      const index = current.header.navigationOrder.indexOf(key);
-      const target = index + direction;
-      if (target < 0 || target >= current.header.navigationOrder.length) {
-        return current;
-      }
-      const navigationOrder = [...current.header.navigationOrder];
-      [navigationOrder[index], navigationOrder[target]] = [
-        navigationOrder[target],
-        navigationOrder[index],
-      ];
-      return { ...current, header: { ...current.header, navigationOrder } };
-    });
-  }
-
   function updateImageAlt(slot: ImageSlot, alt: string) {
     setContent((current) => {
       if (slot === "hero" || slot === "welcome") {
@@ -431,12 +611,41 @@ export function LandingPageBuilder({
       if (slot === "header-logo") {
         return { ...current, header: { ...current.header, logo: { ...current.header.logo, alt } } };
       }
+      if (slot === "about:whoWeAre") {
+        return {
+          ...current,
+          about: {
+            ...current.about,
+            whoWeAre: {
+              ...current.about.whoWeAre,
+              photo: { ...current.about.whoWeAre.photo, alt },
+            },
+          },
+        };
+      }
+      if (slot.startsWith("about:leader:")) {
+        const id = slot.slice("about:leader:".length);
+        const index = current.about.leaders.findIndex((leader) => leader.id === id);
+        if (index < 0) return current;
+        const leaders = [...current.about.leaders];
+        leaders[index] = { ...leaders[index], photo: { ...leaders[index].photo, alt } };
+        return { ...current, about: { ...current.about, leaders } };
+      }
       if (slot.startsWith("contact:")) {
         const field = slot.slice("contact:".length) as LandingPageContactKey;
-        return { ...current, contact: { ...current.contact, appearance: {
-          ...current.contact.appearance,
-          [field]: { ...current.contact.appearance[field], image: { ...current.contact.appearance[field].image, alt } },
-        } } };
+        return {
+          ...current,
+          contact: {
+            ...current.contact,
+            appearance: {
+              ...current.contact.appearance,
+              [field]: {
+                ...current.contact.appearance[field],
+                image: { ...current.contact.appearance[field].image, alt },
+              },
+            },
+          },
+        };
       }
       const section = slot.slice("background:".length) as LandingPageSectionKey;
       return {
@@ -452,13 +661,21 @@ export function LandingPageBuilder({
     });
   }
 
+
   function imageForSlot(slot: ImageSlot) {
     if (slot === "hero" || slot === "welcome") return content[slot].image;
     if (slot === "header-logo") return content.header.logo;
+    if (slot === "about:whoWeAre") return content.about.whoWeAre.photo;
+    if (slot.startsWith("about:leader:")) {
+      const id = slot.slice("about:leader:".length);
+      const leader = content.about.leaders.find((candidate) => candidate.id === id);
+      return leader?.photo ?? { path: null, alt: "" };
+    }
     if (slot.startsWith("contact:")) return content.contact.appearance[slot.slice("contact:".length) as LandingPageContactKey].image;
     const section = slot.slice("background:".length) as LandingPageSectionKey;
     return content.sectionBackgrounds[section].image;
   }
+
 
   async function resetSection(section: LandingPageSectionKey) {
     if (
@@ -488,7 +705,7 @@ export function LandingPageBuilder({
     if (
       !(await confirmAction(
         "Reset header settings?",
-        "The name, logo, logo size, and navigation order will return to their defaults in the draft.",
+        "The name, logo, logo size, and navigation menu will return to their defaults in the draft.",
         "Reset header",
       ))
     ) {
@@ -496,6 +713,49 @@ export function LandingPageBuilder({
     }
     setContent((current) => ({ ...current, header: getDefaultLandingPageContent().header }));
     setUploadedUrls((current) => ({ ...current, "header-logo": null }));
+  }
+
+  async function resetNavigation() {
+    if (
+      !(await confirmAction(
+        "Reset navigation settings?",
+        "The navigation menu and Plan a Visit button will return to their defaults in the draft.",
+        "Reset navigation",
+      ))
+    ) {
+      return;
+    }
+    const defaults = getDefaultLandingPageContent();
+    setContent((current) => ({
+      ...current,
+      header: { ...current.header, navigation: defaults.header.navigation },
+    }));
+    clearFieldErrors();
+  }
+
+  async function resetAbout() {
+    if (
+      !(await confirmAction(
+        "Reset About page settings?",
+        "The About page content will return to its defaults in the draft.",
+        "Reset About page",
+      ))
+    ) {
+      return;
+    }
+    const defaults = getDefaultLandingPageContent();
+    setContent((current) => ({ ...current, about: defaults.about }));
+    setUploadedUrls((current) => {
+      const next = { ...current };
+      next["about:whoWeAre"] = null;
+      for (const key of Object.keys(next)) {
+        if (key.startsWith("about:leader:")) {
+          next[key] = null;
+        }
+      }
+      return next;
+    });
+    clearFieldErrors();
   }
 
   async function resetFooter() {
@@ -588,7 +848,7 @@ export function LandingPageBuilder({
     const formData = new FormData(form);
     const file = formData.get("image");
     const alt = formData.get("alt");
-    const imagePath = imageFieldPath(slot);
+    const imagePath = imageFieldPath(content, slot);
     if (!(file instanceof File) || !file.size) {
       setFieldErrors({ [imagePath]: ["Choose an image to upload."] });
       return;
@@ -602,7 +862,7 @@ export function LandingPageBuilder({
       return;
     }
     if (typeof alt !== "string" || !alt.trim()) {
-      setFieldErrors({ [`${imageFieldPath(slot)}.alt`]: ["Add alt text before uploading."] });
+      setFieldErrors({ [`${imageFieldPath(content, slot)}.alt`]: ["Add alt text before uploading."] });
       return;
     }
 
@@ -632,12 +892,32 @@ export function LandingPageBuilder({
           ...current,
           header: { ...current.header, logo: { path: result.path, alt: result.alt } },
         }));
+      } else if (slot === "about:whoWeAre") {
+        setContent((current) => ({
+          ...current,
+          about: {
+            ...current.about,
+            whoWeAre: { ...current.about.whoWeAre, photo: { path: result.path, alt: result.alt } },
+          },
+        }));
+      } else if (slot.startsWith("about:leader:")) {
+        const id = slot.slice("about:leader:".length);
+        setContent((current) => {
+          const index = current.about.leaders.findIndex((leader) => leader.id === id);
+          if (index < 0) return current;
+          const leaders = [...current.about.leaders];
+          leaders[index] = { ...leaders[index], photo: { path: result.path, alt: result.alt } };
+          return { ...current, about: { ...current.about, leaders } };
+        });
       } else if (slot.startsWith("contact:")) {
         const field = slot.slice("contact:".length) as LandingPageContactKey;
-        setContent((current) => ({ ...current, contact: { ...current.contact, appearance: {
-          ...current.contact.appearance,
-          [field]: { ...current.contact.appearance[field], image: { path: result.path, alt: result.alt } },
-        } } }));
+        setContent((current) => ({
+          ...current,
+          contact: { ...current.contact, appearance: {
+            ...current.contact.appearance,
+            [field]: { ...current.contact.appearance[field], image: { path: result.path, alt: result.alt } },
+          } },
+        }));
       } else {
         const section = slot.slice("background:".length) as LandingPageSectionKey;
         setContent((current) => ({
@@ -694,6 +974,23 @@ export function LandingPageBuilder({
         ...current,
         header: { ...current.header, logo: { path: null, alt: "" } },
       }));
+    } else if (slot === "about:whoWeAre") {
+      setContent((current) => ({
+        ...current,
+        about: {
+          ...current.about,
+          whoWeAre: { ...current.about.whoWeAre, photo: { path: null, alt: "" } },
+        },
+      }));
+    } else if (slot.startsWith("about:leader:")) {
+      const id = slot.slice("about:leader:".length);
+      setContent((current) => {
+        const index = current.about.leaders.findIndex((leader) => leader.id === id);
+        if (index < 0) return current;
+        const leaders = [...current.about.leaders];
+        leaders[index] = { ...leaders[index], photo: { path: null, alt: "" } };
+        return { ...current, about: { ...current.about, leaders } };
+      });
     } else if (slot.startsWith("contact:")) {
       const field = slot.slice("contact:".length) as LandingPageContactKey;
       setContent((current) => ({ ...current, contact: { ...current.contact, appearance: {
@@ -718,7 +1015,7 @@ export function LandingPageBuilder({
 
   function imageFields(slot: ImageSlot, recommendedSize: string, label = "Photo") {
     const image = imageForSlot(slot);
-    const path = imageFieldPath(slot);
+    const path = imageFieldPath(content, slot);
     return (
       <div className="flex flex-col gap-3">
         <Field>
@@ -1188,40 +1485,793 @@ export function LandingPageBuilder({
                   <FieldDescription>{content.header.logoSize} × {content.header.logoSize} px</FieldDescription>
                 </Field>
                 {imageFields("header-logo", "512 × 512 px", "Logo")}
-                <Field>
-                  <FieldLabel>Navigation tab order</FieldLabel>
-                  <FieldDescription>Move tabs up or down. Their existing destinations remain unchanged.</FieldDescription>
-                  <div className="flex flex-col gap-2">
-                    {content.header.navigationOrder.map((key, index) => (
-                      <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3" key={key}>
-                        <span className="text-sm font-medium">{navigationTitles[key]}</span>
-                        <div className="flex gap-2">
+              </FieldGroup>
+              <div className="mt-4 border-t border-border pt-3">
+                {draftActionButtons(true)}
+              </div>
+            </div>
+          </div>
+        ﻿</section>
+
+        <section
+          aria-labelledby="navigation-editor-heading"
+          className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button
+              aria-controls="navigation-editor-panel"
+              aria-expanded={openSection === "navigation"}
+              className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
+              id="navigation-editor-heading"
+              onClick={() => void togglePanel("navigation")}
+              ref={(element) => {
+                sectionHeaderRefs.current.navigation = element;
+              }}
+              type="button"
+              variant="ghost"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold">Navigation</span>
+                {JSON.stringify(content.header.navigation) !==
+                  JSON.stringify(savedDraftContent.header.navigation) && (
+                    <>
+                      <span
+                        aria-label="Unsaved changes"
+                        className="size-2 shrink-0 rounded-full bg-primary"
+                        title="Unsaved changes"
+                      />
+                      <span className="sr-only">Unsaved changes</span>
+                    </>
+                  )}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${
+                  openSection === "navigation" ? "rotate-180" : ""
+                }`}
+              />
+            </Button>
+            <Button
+              onClick={() => void resetNavigation()}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Reset navigation to default
+            </Button>
+          </div>
+
+          <div
+            aria-hidden={openSection !== "navigation"}
+            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+              openSection === "navigation" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+            id="navigation-editor-panel"
+          >
+            <div className="min-h-0 overflow-hidden" inert={openSection !== "navigation"}>
+              <FieldGroup className="pb-2 pt-3">
+                <FieldDescription>
+                  Controls the public header menu. (The Login link is always shown separately.)
+                </FieldDescription>
+
+                <div className="mt-4 flex flex-col gap-3">
+                  {content.header.navigation.items.map((item, index) => (
+                    <div className="rounded-xl border border-border p-4" key={item.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="grid w-full gap-3 md:grid-cols-2">
+                          <Field>
+                            <FieldLabel htmlFor={`nav-${item.id}-label`}>Label</FieldLabel>
+                            <Input
+                              aria-invalid={Boolean(fieldErrors[`header.navigation.items.${index}.label`])}
+                              id={`nav-${item.id}-label`}
+                              maxLength={60}
+                              onChange={(event) =>
+                                setContent((current) => {
+                                  const items = [...current.header.navigation.items];
+                                  items[index] = { ...items[index], label: event.target.value };
+                                  return {
+                                    ...current,
+                                    header: {
+                                      ...current.header,
+                                      navigation: { ...current.header.navigation, items },
+                                    },
+                                  };
+                                })
+                              }
+                              value={item.label}
+                            />
+                            <FieldMessages messages={fieldErrors[`header.navigation.items.${index}.label`]} />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor={`nav-${item.id}-href`}>Link</FieldLabel>
+                            <Input
+                              aria-invalid={Boolean(fieldErrors[`header.navigation.items.${index}.href`])}
+                              id={`nav-${item.id}-href`}
+                              maxLength={200}
+                              onChange={(event) =>
+                                setContent((current) => {
+                                  const items = [...current.header.navigation.items];
+                                  items[index] = { ...items[index], href: event.target.value };
+                                  return {
+                                    ...current,
+                                    header: {
+                                      ...current.header,
+                                      navigation: { ...current.header.navigation, items },
+                                    },
+                                  };
+                                })
+                              }
+                              placeholder="/about or https://..."
+                              value={item.href}
+                            />
+                            <FieldDescription>Use a site path (starts with /) or an https URL.</FieldDescription>
+                            <FieldMessages messages={fieldErrors[`header.navigation.items.${index}.href`]} />
+                          </Field>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label
+                            className="inline-flex min-h-9 items-center gap-1.5 px-1 text-xs text-muted-foreground"
+                            htmlFor={`nav-${item.id}-hidden`}
+                          >
+                            <input
+                              checked={item.hidden}
+                              className="size-4 accent-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                              id={`nav-${item.id}-hidden`}
+                              onChange={(event) =>
+                                setContent((current) => {
+                                  const items = [...current.header.navigation.items];
+                                  items[index] = { ...items[index], hidden: event.target.checked };
+                                  return {
+                                    ...current,
+                                    header: {
+                                      ...current.header,
+                                      navigation: { ...current.header.navigation, items },
+                                    },
+                                  };
+                                })
+                              }
+                              type="checkbox"
+                            />
+                            Hide
+                          </label>
                           <Button
-                            aria-label={`Move ${navigationTitles[key]} tab up`}
+                            aria-label="Move navigation item up"
                             disabled={index === 0}
-                            onClick={() => updateNavigationOrder(key, -1)}
-                            size="sm"
+                            onClick={() => moveNavItem(item.id, -1)}
+                            size="icon-sm"
                             type="button"
                             variant="outline"
                           >
-                            Move up
+                            <ArrowUp aria-hidden="true" data-icon="inline-start" />
                           </Button>
                           <Button
-                            aria-label={`Move ${navigationTitles[key]} tab down`}
-                            disabled={index === content.header.navigationOrder.length - 1}
-                            onClick={() => updateNavigationOrder(key, 1)}
+                            aria-label="Move navigation item down"
+                            disabled={index === content.header.navigation.items.length - 1}
+                            onClick={() => moveNavItem(item.id, 1)}
+                            size="icon-sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            <ArrowDown aria-hidden="true" data-icon="inline-start" />
+                          </Button>
+                          <Button
+                            onClick={() => void removeNavItem(item.id)}
                             size="sm"
                             type="button"
                             variant="outline"
                           >
-                            Move down
+                            Remove
                           </Button>
                         </div>
                       </div>
-                    ))}
+
+                      <details className="mt-4">
+                        <summary className="cursor-pointer text-sm font-medium">Dropdown links (optional)</summary>
+                        <div className="mt-3 flex flex-col gap-3">
+                          {item.children.map((child, childIndex) => (
+                            <div className="rounded-lg border border-border p-3" key={child.id}>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <Field>
+                                  <FieldLabel htmlFor={`nav-child-${child.id}-label`}>Label</FieldLabel>
+                                  <Input
+                                    aria-invalid={Boolean(
+                                      fieldErrors[`header.navigation.items.${index}.children.${childIndex}.label`],
+                                    )}
+                                    id={`nav-child-${child.id}-label`}
+                                    maxLength={60}
+                                    onChange={(event) =>
+                                      setContent((current) => {
+                                        const items = [...current.header.navigation.items];
+                                        const parent = { ...items[index] };
+                                        const children = [...parent.children];
+                                        children[childIndex] = {
+                                          ...children[childIndex],
+                                          label: event.target.value,
+                                        };
+                                        parent.children = children;
+                                        items[index] = parent;
+                                        return {
+                                          ...current,
+                                          header: {
+                                            ...current.header,
+                                            navigation: { ...current.header.navigation, items },
+                                          },
+                                        };
+                                      })
+                                    }
+                                    value={child.label}
+                                  />
+                                  <FieldMessages
+                                    messages={
+                                      fieldErrors[`header.navigation.items.${index}.children.${childIndex}.label`]
+                                    }
+                                  />
+                                </Field>
+                                <Field>
+                                  <FieldLabel htmlFor={`nav-child-${child.id}-href`}>Link</FieldLabel>
+                                  <Input
+                                    aria-invalid={Boolean(
+                                      fieldErrors[`header.navigation.items.${index}.children.${childIndex}.href`],
+                                    )}
+                                    id={`nav-child-${child.id}-href`}
+                                    maxLength={200}
+                                    onChange={(event) =>
+                                      setContent((current) => {
+                                        const items = [...current.header.navigation.items];
+                                        const parent = { ...items[index] };
+                                        const children = [...parent.children];
+                                        children[childIndex] = {
+                                          ...children[childIndex],
+                                          href: event.target.value,
+                                        };
+                                        parent.children = children;
+                                        items[index] = parent;
+                                        return {
+                                          ...current,
+                                          header: {
+                                            ...current.header,
+                                            navigation: { ...current.header.navigation, items },
+                                          },
+                                        };
+                                      })
+                                    }
+                                    placeholder="/about#beliefs"
+                                    value={child.href}
+                                  />
+                                  <FieldMessages
+                                    messages={
+                                      fieldErrors[`header.navigation.items.${index}.children.${childIndex}.href`]
+                                    }
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                <label
+                                  className="inline-flex min-h-9 items-center gap-1.5 px-1 text-xs text-muted-foreground"
+                                  htmlFor={`nav-child-${child.id}-hidden`}
+                                >
+                                  <input
+                                    checked={child.hidden}
+                                    className="size-4 accent-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                    id={`nav-child-${child.id}-hidden`}
+                                    onChange={(event) =>
+                                      setContent((current) => {
+                                        const items = [...current.header.navigation.items];
+                                        const parent = { ...items[index] };
+                                        const children = [...parent.children];
+                                        children[childIndex] = {
+                                          ...children[childIndex],
+                                          hidden: event.target.checked,
+                                        };
+                                        parent.children = children;
+                                        items[index] = parent;
+                                        return {
+                                          ...current,
+                                          header: {
+                                            ...current.header,
+                                            navigation: { ...current.header.navigation, items },
+                                          },
+                                        };
+                                      })
+                                    }
+                                    type="checkbox"
+                                  />
+                                  Hide
+                                </label>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Button
+                                    aria-label="Move dropdown item up"
+                                    disabled={childIndex === 0}
+                                    onClick={() => moveNavChild(item.id, child.id, -1)}
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                  >
+                                    <ArrowUp aria-hidden="true" data-icon="inline-start" />
+                                  </Button>
+                                  <Button
+                                    aria-label="Move dropdown item down"
+                                    disabled={childIndex === item.children.length - 1}
+                                    onClick={() => moveNavChild(item.id, child.id, 1)}
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                  >
+                                    <ArrowDown aria-hidden="true" data-icon="inline-start" />
+                                  </Button>
+                                  <Button
+                                    onClick={() => void removeNavChild(item.id, child.id)}
+                                    size="sm"
+                                    type="button"
+                                    variant="outline"
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Button
+                              disabled={item.children.length >= 12}
+                              onClick={() => addNavChild(item.id)}
+                              type="button"
+                              variant="outline"
+                            >
+                              Add dropdown link
+                            </Button>
+                            {item.children.length >= 12 && (
+                              <span className="text-xs text-muted-foreground">Max 12 dropdown links.</span>
+                            )}
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button
+                      disabled={content.header.navigation.items.length >= 7}
+                      onClick={() => addNavItem()}
+                      type="button"
+                      variant="outline"
+                    >
+                      Add menu item
+                    </Button>
+                    {content.header.navigation.items.length >= 7 && (
+                      <span className="text-xs text-muted-foreground">Max 7 top-level items.</span>
+                    )}
                   </div>
-                </Field>
+                </div>
+
+                <div className="mt-6 rounded-xl border border-border p-4">
+                  <h3 className="text-sm font-semibold">Plan a Visit button</h3>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="plan-visit-label">Label</FieldLabel>
+                      <Input
+                        aria-invalid={Boolean(fieldErrors["header.navigation.planVisit.label"])}
+                        id="plan-visit-label"
+                        maxLength={40}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            header: {
+                              ...current.header,
+                              navigation: {
+                                ...current.header.navigation,
+                                planVisit: {
+                                  ...current.header.navigation.planVisit,
+                                  label: event.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        value={content.header.navigation.planVisit.label}
+                      />
+                      <FieldMessages messages={fieldErrors["header.navigation.planVisit.label"]} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="plan-visit-href">Link</FieldLabel>
+                      <Input
+                        aria-invalid={Boolean(fieldErrors["header.navigation.planVisit.href"])}
+                        id="plan-visit-href"
+                        maxLength={200}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            header: {
+                              ...current.header,
+                              navigation: {
+                                ...current.header.navigation,
+                                planVisit: {
+                                  ...current.header.navigation.planVisit,
+                                  href: event.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        placeholder="/#contact"
+                        value={content.header.navigation.planVisit.href}
+                      />
+                      <FieldMessages messages={fieldErrors["header.navigation.planVisit.href"]} />
+                    </Field>
+                  </div>
+                  <div className="mt-3">
+                    <label
+                      className="inline-flex min-h-9 items-center gap-1.5 px-1 text-xs text-muted-foreground"
+                      htmlFor="plan-visit-hidden"
+                    >
+                      <input
+                        checked={content.header.navigation.planVisit.hidden}
+                        className="size-4 accent-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        id="plan-visit-hidden"
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            header: {
+                              ...current.header,
+                              navigation: {
+                                ...current.header.navigation,
+                                planVisit: {
+                                  ...current.header.navigation.planVisit,
+                                  hidden: event.target.checked,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      Hide Plan a Visit button
+                    </label>
+                  </div>
+                </div>
               </FieldGroup>
+
+              <div className="mt-4 border-t border-border pt-3">
+                {draftActionButtons(true)}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          aria-labelledby="about-editor-heading"
+          className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button
+              aria-controls="about-editor-panel"
+              aria-expanded={openSection === "about"}
+              className="scroll-mt-24 min-w-[140px] flex-1 justify-between px-2 text-left"
+              id="about-editor-heading"
+              onClick={() => void togglePanel("about")}
+              ref={(element) => {
+                sectionHeaderRefs.current.about = element;
+              }}
+              type="button"
+              variant="ghost"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold">About page</span>
+                {JSON.stringify(content.about) !== JSON.stringify(savedDraftContent.about) && (
+                  <>
+                    <span
+                      aria-label="Unsaved changes"
+                      className="size-2 shrink-0 rounded-full bg-primary"
+                      title="Unsaved changes"
+                    />
+                    <span className="sr-only">Unsaved changes</span>
+                  </>
+                )}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${
+                  openSection === "about" ? "rotate-180" : ""
+                }`}
+              />
+            </Button>
+            <Button onClick={() => void resetAbout()} size="sm" type="button" variant="ghost">
+              Reset About page to default
+            </Button>
+          </div>
+
+          <div
+            aria-hidden={openSection !== "about"}
+            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+              openSection === "about" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+            id="about-editor-panel"
+          >
+            <div className="min-h-0 overflow-hidden" inert={openSection !== "about"}>
+              <FieldGroup className="pb-2 pt-3">
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <h3 className="text-sm font-semibold">Who We Are</h3>
+                    <Field className="mt-3">
+                      <FieldLabel htmlFor="about-who-we-are-text">Text</FieldLabel>
+                      <Textarea
+                        aria-invalid={Boolean(fieldErrors["about.whoWeAre.text"])}
+                        id="about-who-we-are-text"
+                        maxLength={1200}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            about: {
+                              ...current.about,
+                              whoWeAre: { ...current.about.whoWeAre, text: event.target.value },
+                            },
+                          }))
+                        }
+                        rows={5}
+                        value={content.about.whoWeAre.text}
+                      />
+                      <FieldMessages messages={fieldErrors["about.whoWeAre.text"]} />
+                    </Field>
+                    <div className="mt-4">{imageFields("about:whoWeAre", "1600 x 900 px", "Who We Are photo")}</div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold">Our Beliefs</h3>
+                    <Field className="mt-3">
+                      <FieldLabel htmlFor="about-beliefs-text">Text</FieldLabel>
+                      <Textarea
+                        aria-invalid={Boolean(fieldErrors["about.beliefs.text"])}
+                        id="about-beliefs-text"
+                        maxLength={2000}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            about: {
+                              ...current.about,
+                              beliefs: { ...current.about.beliefs, text: event.target.value },
+                            },
+                          }))
+                        }
+                        rows={6}
+                        value={content.about.beliefs.text}
+                      />
+                      <FieldMessages messages={fieldErrors["about.beliefs.text"]} />
+                    </Field>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold">Service Times</h3>
+                    <Field className="mt-3">
+                      <FieldLabel htmlFor="about-service-times-intro">Intro text (optional)</FieldLabel>
+                      <Textarea
+                        aria-invalid={Boolean(fieldErrors["about.serviceTimes.intro"])}
+                        id="about-service-times-intro"
+                        maxLength={800}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            about: {
+                              ...current.about,
+                              serviceTimes: {
+                                ...current.about.serviceTimes,
+                                intro: event.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        rows={3}
+                        value={content.about.serviceTimes.intro}
+                      />
+                      <FieldDescription>Service time cards come from the Worship schedules admin page.</FieldDescription>
+                      <FieldMessages messages={fieldErrors["about.serviceTimes.intro"]} />
+                    </Field>
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold">Our Leaders</h3>
+                      <Button onClick={() => addLeader()} type="button" variant="outline">
+                        Add leader
+                      </Button>
+                    </div>
+
+                    {content.about.leaders.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">No leaders added yet.</p>
+                    ) : (
+                      <div className="mt-3 flex flex-col gap-3">
+                        {content.about.leaders.map((leader, index) => (
+                          <div className="rounded-xl border border-border p-4" key={leader.id}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="grid w-full gap-3 md:grid-cols-2">
+                                <Field>
+                                  <FieldLabel htmlFor={`leader-${leader.id}-name`}>Name</FieldLabel>
+                                  <Input
+                                    aria-invalid={Boolean(fieldErrors[`about.leaders.${index}.name`])}
+                                    id={`leader-${leader.id}-name`}
+                                    maxLength={120}
+                                    onChange={(event) =>
+                                      setContent((current) => {
+                                        const leaders = [...current.about.leaders];
+                                        leaders[index] = {
+                                          ...leaders[index],
+                                          name: event.target.value,
+                                        };
+                                        return {
+                                          ...current,
+                                          about: { ...current.about, leaders },
+                                        };
+                                      })
+                                    }
+                                    value={leader.name}
+                                  />
+                                  <FieldMessages messages={fieldErrors[`about.leaders.${index}.name`]} />
+                                </Field>
+                                <Field>
+                                  <FieldLabel htmlFor={`leader-${leader.id}-role`}>Role</FieldLabel>
+                                  <Input
+                                    aria-invalid={Boolean(fieldErrors[`about.leaders.${index}.role`])}
+                                    id={`leader-${leader.id}-role`}
+                                    maxLength={120}
+                                    onChange={(event) =>
+                                      setContent((current) => {
+                                        const leaders = [...current.about.leaders];
+                                        leaders[index] = {
+                                          ...leaders[index],
+                                          role: event.target.value,
+                                        };
+                                        return {
+                                          ...current,
+                                          about: { ...current.about, leaders },
+                                        };
+                                      })
+                                    }
+                                    value={leader.role}
+                                  />
+                                  <FieldMessages messages={fieldErrors[`about.leaders.${index}.role`]} />
+                                </Field>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  aria-label="Move leader up"
+                                  disabled={index === 0}
+                                  onClick={() => moveLeader(leader.id, -1)}
+                                  size="icon-sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  <ArrowUp aria-hidden="true" data-icon="inline-start" />
+                                </Button>
+                                <Button
+                                  aria-label="Move leader down"
+                                  disabled={index === content.about.leaders.length - 1}
+                                  onClick={() => moveLeader(leader.id, 1)}
+                                  size="icon-sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  <ArrowDown aria-hidden="true" data-icon="inline-start" />
+                                </Button>
+                                <Button
+                                  onClick={() => void removeLeader(leader.id)}
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="mt-4">{imageFields(`about:leader:${leader.id}`, "800 x 800 px", "Leader photo")}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold">Contact / Visit call to action</h3>
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <Field className="sm:col-span-2">
+                        <FieldLabel htmlFor="about-cta-heading">Heading (optional)</FieldLabel>
+                        <Input
+                          aria-invalid={Boolean(fieldErrors["about.callToAction.heading"])}
+                          id="about-cta-heading"
+                          maxLength={120}
+                          onChange={(event) =>
+                            setContent((current) => ({
+                              ...current,
+                              about: {
+                                ...current.about,
+                                callToAction: {
+                                  ...current.about.callToAction,
+                                  heading: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          value={content.about.callToAction.heading}
+                        />
+                        <FieldMessages messages={fieldErrors["about.callToAction.heading"]} />
+                      </Field>
+                      <Field className="sm:col-span-2">
+                        <FieldLabel htmlFor="about-cta-text">Text (optional)</FieldLabel>
+                        <Textarea
+                          aria-invalid={Boolean(fieldErrors["about.callToAction.text"])}
+                          id="about-cta-text"
+                          maxLength={500}
+                          onChange={(event) =>
+                            setContent((current) => ({
+                              ...current,
+                              about: {
+                                ...current.about,
+                                callToAction: {
+                                  ...current.about.callToAction,
+                                  text: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          rows={3}
+                          value={content.about.callToAction.text}
+                        />
+                        <FieldMessages messages={fieldErrors["about.callToAction.text"]} />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="about-cta-button-label">Button label (optional)</FieldLabel>
+                        <Input
+                          aria-invalid={Boolean(fieldErrors["about.callToAction.buttonLabel"])}
+                          id="about-cta-button-label"
+                          maxLength={40}
+                          onChange={(event) =>
+                            setContent((current) => ({
+                              ...current,
+                              about: {
+                                ...current.about,
+                                callToAction: {
+                                  ...current.about.callToAction,
+                                  buttonLabel: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          value={content.about.callToAction.buttonLabel}
+                        />
+                        <FieldMessages messages={fieldErrors["about.callToAction.buttonLabel"]} />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="about-cta-button-href">Button link (optional)</FieldLabel>
+                        <Input
+                          aria-invalid={Boolean(fieldErrors["about.callToAction.buttonHref"])}
+                          id="about-cta-button-href"
+                          maxLength={200}
+                          onChange={(event) =>
+                            setContent((current) => ({
+                              ...current,
+                              about: {
+                                ...current.about,
+                                callToAction: {
+                                  ...current.about.callToAction,
+                                  buttonHref: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          placeholder="/#contact or https://..."
+                          value={content.about.callToAction.buttonHref}
+                        />
+                        <FieldMessages messages={fieldErrors["about.callToAction.buttonHref"]} />
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+              </FieldGroup>
+
               <div className="mt-4 border-t border-border pt-3">
                 {draftActionButtons(true)}
               </div>
@@ -1230,6 +2280,7 @@ export function LandingPageBuilder({
         </section>
 
         <div className="flex flex-col gap-3">
+
           {content.sectionOrder.map((section, index) => {
             const sectionIsOpen = openSection === section;
             const hasUnsavedChanges =

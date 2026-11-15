@@ -142,6 +142,98 @@ const imageSchema = z.object({
 });
 
 const defaultImage = { path: null, alt: "" };
+
+const landingPageNavHref = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .refine(
+    (value) =>
+      (value.startsWith("/") && !value.startsWith("//")) ||
+      /^https:\/\//i.test(value),
+    "Enter a site path or an https URL.",
+  );
+
+const landingPageNavItemSchema: z.ZodType<{
+  id: string;
+  label: string;
+  href: string;
+  hidden: boolean;
+  children: Array<{ id: string; label: string; href: string; hidden: boolean }>;
+}> = z.object({
+  id: z.string().uuid(),
+  label: requiredText(60),
+  href: landingPageNavHref,
+  hidden: z.boolean().default(false),
+  children: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        label: requiredText(60),
+        href: landingPageNavHref,
+        hidden: z.boolean().default(false),
+      }),
+    )
+    .max(12)
+    .default([]),
+});
+
+const landingPageNavigationSchema = z
+  .object({
+    items: z.array(landingPageNavItemSchema).max(7).default([]),
+    planVisit: z
+      .object({
+        label: requiredText(40),
+        href: landingPageNavHref,
+        hidden: z.boolean().default(false),
+      })
+      .default({ label: "Plan a Visit", href: "/#contact", hidden: false }),
+  })
+  .default({ items: [], planVisit: { label: "Plan a Visit", href: "/#contact", hidden: false } });
+
+const landingPageAboutLeaderSchema = z.object({
+  id: z.string().uuid(),
+  name: requiredText(120),
+  role: text(120).default(""),
+  photo: imageSchema.default(defaultImage),
+});
+
+const landingPageAboutSchema = z
+  .object({
+    whoWeAre: z
+      .object({
+        text: text(1200).default(""),
+        photo: imageSchema.default(defaultImage),
+      })
+      .default({ text: "", photo: defaultImage }),
+    beliefs: z
+      .object({
+        text: text(2000).default(""),
+      })
+      .default({ text: "" }),
+    serviceTimes: z
+      .object({
+        intro: text(800).default(""),
+      })
+      .default({ intro: "" }),
+    leaders: z.array(landingPageAboutLeaderSchema).max(40).default([]),
+    callToAction: z
+      .object({
+        heading: text(120).default(""),
+        text: text(500).default(""),
+        buttonLabel: text(40).default(""),
+        buttonHref: z.union([z.literal(""), landingPageNavHref]),
+      })
+      .default({ heading: "", text: "", buttonLabel: "", buttonHref: "" }),
+  })
+  .default({
+    whoWeAre: { text: "", photo: defaultImage },
+    beliefs: { text: "" },
+    serviceTimes: { intro: "" },
+    leaders: [],
+    callToAction: { heading: "", text: "", buttonLabel: "", buttonHref: "" },
+  });
 export const defaultScheduleTextStyle = {
   textColor: "",
   textAlign: "inherit" as const,
@@ -231,7 +323,78 @@ const defaultHeader = {
   subtitle: "Baptist Church",
   logo: defaultImage,
   logoSize: 40,
-  navigationOrder: [...landingPageNavigationKeys],
+  navigation: {
+    items: [
+      {
+        id: "00000000-0000-4000-8000-000000000101",
+        label: "About",
+        href: "/about",
+        hidden: false,
+        children: [
+          {
+            id: "00000000-0000-4000-8000-000000000102",
+            label: "About Us",
+            href: "/about",
+            hidden: false,
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000103",
+            label: "Service Times",
+            href: "/about#service-times",
+            hidden: false,
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000104",
+            label: "Beliefs",
+            href: "/about#beliefs",
+            hidden: false,
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000105",
+            label: "Leaders",
+            href: "/about#leaders",
+            hidden: false,
+          },
+        ],
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000106",
+        label: "Announcements",
+        href: "/#announcements",
+        hidden: false,
+        children: [],
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000107",
+        label: "Events",
+        href: "/#events",
+        hidden: false,
+        children: [],
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000108",
+        label: "Livestream",
+        href: "/#livestream",
+        hidden: false,
+        children: [],
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000109",
+        label: "Devotionals",
+        href: "/devotionals",
+        hidden: false,
+        children: [],
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000110",
+        label: "Contact",
+        href: "/#contact",
+        hidden: false,
+        children: [],
+      },
+    ],
+    planVisit: { label: "Plan a Visit", href: "/#contact", hidden: false },
+  },
 };
 const defaultFooter = {
   title: "Grace Christian Baptist Church",
@@ -249,16 +412,20 @@ const builderContentSchema = z.object({
     (keys) => new Set(keys).size === landingPageSectionKeys.length,
     "Every section must appear once in the order.",
   ),
-  header: z.object({
-    name: text(80).default(defaultHeader.name),
-    subtitle: text(80).default(defaultHeader.subtitle),
-    logo: imageSchema.default(defaultHeader.logo),
-    logoSize: z.number().int().min(28).max(96).default(defaultHeader.logoSize),
-    navigationOrder: z.array(z.enum(landingPageNavigationKeys)).length(5).refine(
-      (keys) => new Set(keys).size === landingPageNavigationKeys.length,
-      "Every navigation tab must appear once in the order.",
-    ).default([...landingPageNavigationKeys]),
-  }).default(defaultHeader),
+  header: z
+    .preprocess((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const saved = value as Record<string, unknown>;
+      if (saved.navigation !== undefined) return value;
+      return { ...saved, navigation: defaultHeader.navigation };
+    }, z.object({
+      name: text(80).default(defaultHeader.name),
+      subtitle: text(80).default(defaultHeader.subtitle),
+      logo: imageSchema.default(defaultHeader.logo),
+      logoSize: z.number().int().min(28).max(96).default(defaultHeader.logoSize),
+      navigation: landingPageNavigationSchema.default(defaultHeader.navigation),
+    }))
+    .default(defaultHeader),
   footer: z.object({
     title: text(120).default(defaultFooter.title),
     text: text(500).default(defaultFooter.text),
@@ -356,6 +523,7 @@ const builderContentSchema = z.object({
     intro: text(500),
     count: z.union([z.literal(3), z.literal(6), z.literal(9)]),
   }),
+  about: landingPageAboutSchema,
 }).superRefine((content, context) => {
   const requiredWhenVisible: Array<[LandingPageSectionKey, boolean, string]> = [
     ["hero", Boolean(content.hero.headline), "Add a headline before showing the hero."],
@@ -497,6 +665,25 @@ const defaultLandingPageContent: LandingPageContent = {
     title: "Events",
     intro: "",
     count: 3,
+  },
+  about: {
+    whoWeAre: {
+      text: "",
+      photo: { path: null, alt: "" },
+    },
+    beliefs: {
+      text: "",
+    },
+    serviceTimes: {
+      intro: "",
+    },
+    leaders: [],
+    callToAction: {
+      heading: "",
+      text: "",
+      buttonLabel: "",
+      buttonHref: "",
+    },
   },
 };
 

@@ -195,7 +195,10 @@ export async function uploadLandingPageImageAction(
             section.startsWith("contact:") &&
             landingPageContactKeys.includes(
               section.slice("contact:".length) as (typeof landingPageContactKeys)[number],
-            )
+            )          ? section
+        : typeof section === "string" &&
+            (section === "about:whoWeAre" ||
+              /^about:leader:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(section))
           ? section
         : null;
 
