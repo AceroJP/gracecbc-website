@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LandingPageView } from "@/components/public/landing-page-view";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicHeader } from "@/components/public/public-header";
-import { getLivestreamVideoUrls, type LandingPageContent } from "@/lib/landing-page";
+import { type LandingPageContent } from "@/lib/landing-page";
 import { getPublicNavigation } from "@/lib/public-navigation";
 import type { getLandingPageData } from "@/lib/landing-page-data";
 
@@ -67,33 +67,6 @@ export function LandingPagePreview({
 
   const navigation = getPublicNavigation(draft.content, navigationAvailability);
 
-  const hasContact =
-    draft.content.visibility.contact &&
-    Boolean(
-      draft.content.contact.address ||
-        draft.content.contact.phone ||
-        draft.content.contact.email ||
-        draft.content.contact.facebookUrl ||
-        draft.content.contact.mapUrl,
-    );
-
-  const hasLivestream =
-    draft.content.visibility.livestream &&
-    draft.content.livestream.itemsToShow > 0 &&
-    draft.content.livestream.items.some((item) => getLivestreamVideoUrls(item.url));
-
-  const footerLinks = [
-    ...(navigation.aboutVisible ? [{ label: "About", href: "/about" }] : []),
-    ...(
-      draft.content.visibility.announcements && navigationAvailability.announcements
-        ? [{ label: "Announcements", href: "/#announcements" }]
-        : []
-    ),
-    ...(draft.content.visibility.events && navigationAvailability.events ? [{ label: "Events", href: "/#events" }] : []),
-    ...(hasLivestream ? [{ label: "Livestream", href: "/#livestream" }] : []),
-    ...(hasContact ? [{ label: "Contact", href: "/#contact" }] : []),
-  ];
-
   return (
     <>
       <PublicHeader
@@ -110,12 +83,12 @@ export function LandingPagePreview({
         imageUrls={draft.imageUrls}
         landingPage={draft.content}
       />
-      <PublicFooter
-        contact={draft.content.contact}
-        footer={draft.content.footer}
-        links={footerLinks}
-      />
+      <PublicFooter footer={draft.content.footer} />
     </>
   );
 }
+
+
+
+
 

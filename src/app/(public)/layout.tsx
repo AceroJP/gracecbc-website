@@ -21,33 +21,6 @@ export default async function PublicLayout({
 
   const navigation = getPublicNavigation(landingPage, availability);
 
-  const hasContact =
-    landingPage.visibility.contact &&
-    Boolean(
-      landingPage.contact.address ||
-        landingPage.contact.phone ||
-        landingPage.contact.email ||
-        landingPage.contact.facebookUrl ||
-        landingPage.contact.mapUrl,
-    );
-
-  const hasLivestream =
-    landingPage.visibility.livestream &&
-    landingPage.livestream.itemsToShow > 0 &&
-    landingPage.livestream.items.some((item) => getLivestreamVideoUrls(item.url));
-
-  const footerLinks = [
-    ...(navigation.aboutVisible ? [{ label: "About", href: "/about" }] : []),
-    ...(
-      landingPage.visibility.announcements && availability.announcements
-        ? [{ label: "Announcements", href: "/#announcements" }]
-        : []
-    ),
-    ...(landingPage.visibility.events && availability.events ? [{ label: "Events", href: "/#events" }] : []),
-    ...(hasLivestream ? [{ label: "Livestream", href: "/#livestream" }] : []),
-    ...(hasContact ? [{ label: "Contact", href: "/#contact" }] : []),
-  ];
-
   const supabase = await createClient();
   const logoUrl = landingPage.header.logo.path
     ? supabase.storage
@@ -68,12 +41,12 @@ export default async function PublicLayout({
         <PublicStatusAlert />
       </Suspense>
       {children}
-      <PublicFooter
-        contact={landingPage.contact}
-        footer={landingPage.footer}
-        links={footerLinks}
-      />
+      <PublicFooter footer={landingPage.footer} />
     </>
   );
 }
+
+
+
+
 
